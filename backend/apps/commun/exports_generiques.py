@@ -106,7 +106,7 @@ def reponse_pdf_liste(titre, titres, lignes, nom):
     donnees = [titres] + [[p(v) for v in ligne] for ligne in lignes[:LIMITE_LIGNES_PDF]]
     tableau = Table(donnees, repeatRows=1, colWidths=[largeur_utile / nb] * nb)
     tableau.setStyle(style_tableau())
-    elements = entete_etablissement() + [p(titre or "Liste", STYLE_TITRE), tableau, Spacer(1, 6)]
+    elements = entete_etablissement(largeur_utile) + [p(titre or "Liste", STYLE_TITRE), tableau, Spacer(1, 6)]
     pied = traduire(f"{len(lignes)} ligne(s)")
     if len(lignes) > LIMITE_LIGNES_PDF:
         pied += " " + traduire(f"- PDF limite aux {LIMITE_LIGNES_PDF} premieres : utilisez l'export Excel ou CSV pour la totalite")

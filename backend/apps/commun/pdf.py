@@ -45,6 +45,8 @@ STYLE_NORMAL = ParagraphStyle("normal", parent=_styles["Normal"], fontSize=9, le
 STYLE_PETIT = ParagraphStyle("petit", parent=STYLE_NORMAL, fontSize=8, leading=10)
 STYLE_TITRE = ParagraphStyle("titre", parent=_styles["Title"], fontSize=15, leading=18, spaceAfter=6)
 STYLE_CENTRE = ParagraphStyle("centre", parent=STYLE_NORMAL, alignment=1)
+STYLE_ENTETE_GAUCHE = ParagraphStyle("entete-gauche", parent=STYLE_NORMAL, alignment=0)
+STYLE_ENTETE_DROITE = ParagraphStyle("entete-droite", parent=STYLE_NORMAL, alignment=2)
 
 # --------------------------------------------------------------------------- texte arabe
 
@@ -188,7 +190,9 @@ class Tableau(Table):
         self._commandes = []
         self._converti = False
         nb = max((len(ligne) for ligne in donnees), default=0)
-        if self._arabe:
+        # ReportLab recree le tableau a chaque saut de page avec des donnees deja inversees (normalizedData) :
+        # ne pas les inverser une seconde fois, sinon les pages suivantes repassent dans l'ordre francais.
+        if self._arabe and not kwargs.get("normalizedData"):
             donnees = [list(reversed(ligne)) for ligne in donnees]
             if isinstance(colWidths, (list, tuple)):
                 colWidths = list(reversed(colWidths))
@@ -266,30 +270,42 @@ def _parametre_localise(cle):
     return lire_parametre(cle)
 
 
-def _bloc_entete(langue_bloc):
+def _bloc_entete(langue_bloc, style):
     """Lignes de l'entete dans une langue donnee, quelle que soit la langue de l'interface."""
     with en_langue(langue_bloc):
         bloc = [
-            p("Republique Islamique de Mauritanie", STYLE_CENTRE),
-            p("Honneur - Fraternite - Justice", STYLE_CENTRE),
-            p(_parametre_localise("entete_ministere"), STYLE_CENTRE),
-            p(_parametre_localise("entete_region"), STYLE_CENTRE),
-            gras(_parametre_localise("nom_etablissement"), STYLE_CENTRE),
+            p("Republique Islamique de Mauritanie", style),
+            p("Honneur - Fraternite - Justice", style),
+            p(_parametre_localise("entete_ministere"), style),
+            p(_parametre_localise("entete_region"), style),
+            gras(_parametre_localise("nom_etablissement"), style),
         ]
         telephone = lire_parametre("telephone_etablissement")
         if telephone:
-            bloc.append(p(f"Tel : {telephone}" if langue_bloc == "fr" else f"الهاتف : {telephone}", STYLE_CENTRE))
+            bloc.append(p(f"Tel : {telephone}" if langue_bloc == "fr" else f"الهاتف : {telephone}", style))
     return bloc
 
 
-def entete_etablissement():
-    """Bloc d'entete : partie francaise a gauche, logo (si fourni) au centre, partie arabe a droite.
-    La disposition est la meme quelle que soit la langue de l'interface."""
+def entete_etablissement(largeur=None):
+    """Bloc d'entete : partie francaise a gauche, logo (si fourni) au centre, partie arabe a droite, puis un trait
+    de separation. Il s'etend sur `largeur` (celle du tableau qui suit ; par defaut toute la largeur utile), les
+    textes etant colles aux bords : la disposition est la meme quelle que soit la langue de l'interface."""
     logo = chemin_logo()
     centre = Image(logo, width=2.2 * cm, height=2.2 * cm, kind="proportional") if logo else ""
-    tableau = Table([[_bloc_entete("fr"), centre, _bloc_entete("ar")]], colWidths=["40%", "20%", "40%"])
-    tableau.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
-    return [tableau, Spacer(1, 6)]
+    if largeur:
+        cote = (largeur - 3 * cm) / 2
+        colonnes = [cote, 3 * cm, cote]
+    else:
+        colonnes = ["40%", "20%", "40%"]
+    tableau = Table([[_bloc_entete("fr", STYLE_ENTETE_GAUCHE), centre, _bloc_entete("ar", STYLE_ENTETE_DROITE)]], colWidths=colonnes)
+    tableau.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (-1, 0), (-1, 0), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, COULEUR_ENTETE),
+    ]))
+    return [tableau, Spacer(1, 8)]
 
 
 def style_tableau(entete=True, grille=True):

@@ -115,7 +115,7 @@ def pdf_emploi(emploi, filtres, toutes=None):
         for commande in styles:
             style.add(*commande)
         tableau.setStyle(style)
-        elements += entete_etablissement() + [p(titre, STYLE_TITRE), tableau, Spacer(1, 6)]
+        elements += entete_etablissement(27.5 * cm) + [p(titre, STYLE_TITRE), tableau, Spacer(1, 6)]
         if donnees["emploi"]["statut"] != "PUBLIE":
             elements.append(p(f"Emploi du temps {donnees['emploi']['statut'].lower()} : non publie.", STYLE_PETIT))
     if not elements:

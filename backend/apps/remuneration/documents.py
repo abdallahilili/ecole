@@ -114,9 +114,10 @@ def pdf_etat(releves, mois):
         for cle in ("heures", "brut", "primes", "retenues", "net", "paye", "solde"):
             total[cle] += t[cle]
     donnees.append([gras("TOTAL")] + [gras(nombre(total[c])) for c in ("heures", "brut", "primes", "retenues", "net", "paye", "solde")] + [""])
-    tableau = Table(donnees, repeatRows=1, colWidths=[6 * cm, 2.2 * cm, 2.8 * cm, 2.5 * cm, 2.5 * cm, 2.8 * cm, 2.8 * cm, 2.8 * cm, 3.6 * cm])
+    largeurs = [6 * cm, 2.2 * cm, 2.8 * cm, 2.5 * cm, 2.5 * cm, 2.8 * cm, 2.8 * cm, 2.8 * cm, 3.6 * cm]
+    tableau = Table(donnees, repeatRows=1, colWidths=largeurs)
     tableau.setStyle(style_tableau())
-    elements = entete_etablissement() + [p(f"ETAT DE PAIEMENT DES PROFESSEURS - {nom_mois(mois)}", STYLE_TITRE), tableau,
+    elements = entete_etablissement(sum(largeurs)) + [p(f"ETAT DE PAIEMENT DES PROFESSEURS - {nom_mois(mois)}", STYLE_TITRE), tableau,
                                          Spacer(1, 6), p("Montants en UM. Seuls les releves valides font foi.", STYLE_PETIT)]
     return construire_pdf(elements, paysage=True, titre="Etat de paiement")
 
