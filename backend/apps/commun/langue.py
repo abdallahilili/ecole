@@ -47,8 +47,11 @@ class LangueMiddleware:
         self.get_response = get_response
 
     def __call__(self, requete):
+        from .emission import utilisateur_courant
+
         code = detecter_langue(requete)
         jeton = _langue.set(code)
+        jeton_utilisateur = utilisateur_courant.set(None)
         translation.activate(code)
         try:
             reponse = self.get_response(requete)
@@ -57,3 +60,4 @@ class LangueMiddleware:
         finally:
             translation.deactivate()
             _langue.reset(jeton)
+            utilisateur_courant.reset(jeton_utilisateur)

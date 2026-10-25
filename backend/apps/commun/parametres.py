@@ -5,6 +5,10 @@ configuration prealable. Ne jamais stocker ici de secret (jeton API,
 mot de passe) : la table est lisible par tout utilisateur connecte, les
 secrets restent dans les variables d'environnement du backend."""
 
+import os
+
+from django.conf import settings
+
 from .models import Parametre
 
 DEFAUTS = {
@@ -30,6 +34,12 @@ DEFAUTS = {
 }
 
 VRAI = ("1", "true", "oui", "vrai", "yes", "on")
+
+
+def chemin_logo_televerse():
+    """Chemin du logo envoye depuis les parametres (PNG normalise), ou None."""
+    chemin = os.path.join(settings.MEDIA_ROOT, "ecole", "logo.png")
+    return chemin if os.path.isfile(chemin) else None
 
 
 def lire_parametre(cle, defaut=None):

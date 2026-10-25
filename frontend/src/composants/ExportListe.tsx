@@ -29,7 +29,7 @@ interface Props {
 export function ExportListe({ ouverte, onFermer, url, titre, colonnes, parametres, total, idsPage, selection }: Props) {
   const { notifierErreur, notifierSucces } = useNotifications();
   const [portee, setPortee] = useState<Portee>("tout");
-  const [format, setFormat] = useState<Format>("xlsx");
+  const [format, setFormat] = useState<Format>("pdf");
   const [choisies, setChoisies] = useState<string[]>([]);
   const [enCours, setEnCours] = useState(false);
 
@@ -37,6 +37,7 @@ export function ExportListe({ ouverte, onFermer, url, titre, colonnes, parametre
     if (ouverte) {
       setChoisies(colonnes.map((c) => c.cle));
       setPortee(selection.size > 0 ? "selection" : "tout");
+      setFormat("pdf");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ouverte]);

@@ -22,7 +22,7 @@ from apps.utilisateurs.models import Utilisateur
 
 BACKEND = Path(__file__).resolve().parents[2]
 # Vues volontairement ouvertes ou protegees autrement (jeton propre a l'utilisateur, signature HMAC, controle interne).
-VUES_HORS_ROLES = {"MoiView", "MotDePasseView", "ParametresView", "ConnexionView", "RafraichirTokenView",
+VUES_HORS_ROLES = {"MoiView", "MotDePasseView", "ParametresView", "LogoView", "ConnexionView", "RafraichirTokenView",
                    "WebhookWhatsAppView", "TableauDeBordView", "RechercheGlobaleView",
                    "APIRootView"}   # page racine du routeur : simple liste de routes, reservee aux connectes
 

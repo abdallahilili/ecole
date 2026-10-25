@@ -23,8 +23,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .langue import est_arabe
-from .parametres import lire_parametre
+from .emission import mention_emission
+from .langue import en_langue, est_arabe
+from .parametres import chemin_logo_televerse, lire_parametre
 from .traduction import traduire
 
 COULEUR_ENTETE = colors.HexColor("#1d4e5f")
@@ -60,7 +61,7 @@ RE_CHAINE_LATINE = re.compile(r"[A-Za-z0-9À-ÿ]+(?:[-/:.,'_][A-Za-z0-9À-ÿ]+)*
 RE_PROTEGE = re.compile("[-]")
 
 
-def _visuel(texte):
+def _visuel(texte, rtl=None):
     """Ligne logique -> ligne en ordre d'affichage (lettres reliees, ordre bidirectionnel).
 
     Les suites latines/numeriques sont remplacees par un seul caractere « fort gauche-droite » pendant le calcul de
@@ -74,7 +75,7 @@ def _visuel(texte):
         return chr(0xE000 + len(chaines) - 1)
 
     protege = RE_CHAINE_LATINE.sub(garder, texte)
-    visuel = get_display(_reshaper.reshape(protege), base_dir="R" if est_arabe() else "L")
+    visuel = get_display(_reshaper.reshape(protege), base_dir="R" if (est_arabe() if rtl is None else rtl) else "L")
     return RE_PROTEGE.sub(lambda trouve: chaines[ord(trouve.group(0)) - 0xE000], visuel)
 
 
@@ -107,6 +108,7 @@ class ParagrapheArabe(Paragraph):
     def __init__(self, lignes_logiques, style, gras=False):
         self._lignes_logiques = lignes_logiques      # une entree par ligne forcee (<br/>)
         self._gras = gras
+        self._rtl = est_arabe()                      # sens fixe a la creation (l'entete est arabe meme en interface francaise)
         super().__init__(self._html(lignes_logiques), style)
 
     def _html(self, lignes):
@@ -119,7 +121,7 @@ class ParagrapheArabe(Paragraph):
         lignes, courante = [], ""
         for mot in texte.split(" "):
             essai = f"{courante} {mot}" if courante else mot
-            if courante and pdfmetrics.stringWidth(_visuel(essai), police, taille) > largeur:
+            if courante and pdfmetrics.stringWidth(_visuel(essai, self._rtl), police, taille) > largeur:
                 lignes.append(courante)
                 courante = mot
             else:
@@ -131,7 +133,7 @@ class ParagrapheArabe(Paragraph):
         utile = largeur - self.style.leftIndent - self.style.rightIndent
         visuelles = []
         for ligne in self._lignes_logiques:
-            visuelles += [_visuel(l) for l in self._decouper(ligne, utile)]
+            visuelles += [_visuel(l, self._rtl) for l in self._decouper(ligne, utile)]
         Paragraph.__init__(self, self._html(visuelles), self.style)
         return super().wrap(largeur, hauteur)
 
@@ -247,6 +249,10 @@ class Tableau(Table):
 
 
 def chemin_logo():
+    """Logo envoye depuis les parametres, sinon celui de la variable d'environnement LOGO_ECOLE."""
+    televerse = chemin_logo_televerse()
+    if televerse:
+        return televerse
     chemin = getattr(settings, "LOGO_ECOLE", "")
     return chemin if chemin and os.path.isfile(chemin) else None
 
@@ -260,25 +266,30 @@ def _parametre_localise(cle):
     return lire_parametre(cle)
 
 
+def _bloc_entete(langue_bloc):
+    """Lignes de l'entete dans une langue donnee, quelle que soit la langue de l'interface."""
+    with en_langue(langue_bloc):
+        bloc = [
+            p("Republique Islamique de Mauritanie", STYLE_CENTRE),
+            p("Honneur - Fraternite - Justice", STYLE_CENTRE),
+            p(_parametre_localise("entete_ministere"), STYLE_CENTRE),
+            p(_parametre_localise("entete_region"), STYLE_CENTRE),
+            gras(_parametre_localise("nom_etablissement"), STYLE_CENTRE),
+        ]
+        telephone = lire_parametre("telephone_etablissement")
+        if telephone:
+            bloc.append(p(f"Tel : {telephone}" if langue_bloc == "fr" else f"الهاتف : {telephone}", STYLE_CENTRE))
+    return bloc
+
+
 def entete_etablissement():
-    """Bloc d'entete : logo (si fourni), lignes officielles et nom de l'ecole."""
-    bloc = [
-        p("Republique Islamique de Mauritanie", STYLE_CENTRE),
-        p("Honneur - Fraternite - Justice", STYLE_CENTRE),
-        p(_parametre_localise("entete_ministere"), STYLE_CENTRE),
-        p(_parametre_localise("entete_region"), STYLE_CENTRE),
-        gras(_parametre_localise("nom_etablissement"), STYLE_CENTRE),
-    ]
-    telephone = lire_parametre("telephone_etablissement")
-    if telephone:
-        bloc.append(p(f"Tel : {telephone}" if not est_arabe() else f"الهاتف : {telephone}", STYLE_CENTRE))
+    """Bloc d'entete : partie francaise a gauche, logo (si fourni) au centre, partie arabe a droite.
+    La disposition est la meme quelle que soit la langue de l'interface."""
     logo = chemin_logo()
-    if logo:
-        image = Image(logo, width=2.2 * cm, height=2.2 * cm)
-        tableau = Tableau([[bloc, image]], colWidths=[None, 2.6 * cm])
-        tableau.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
-        return [tableau, Spacer(1, 6)]
-    return bloc + [Spacer(1, 6)]
+    centre = Image(logo, width=2.2 * cm, height=2.2 * cm, kind="proportional") if logo else ""
+    tableau = Table([[_bloc_entete("fr"), centre, _bloc_entete("ar")]], colWidths=["40%", "20%", "40%"])
+    tableau.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    return [tableau, Spacer(1, 6)]
 
 
 def style_tableau(entete=True, grille=True):
@@ -313,6 +324,24 @@ def _filigrane(texte):
     return dessiner
 
 
+def _pied_de_page(canvas, document):
+    """Date d'impression, utilisateur et numero de page en bas de chaque page (mention du cote de lecture)."""
+    largeur, _ = document.pagesize
+    mention = texte_pdf(mention_emission())
+    x_mention, x_numero = (1.5 * cm, largeur - 1.5 * cm)
+    ecrire_mention, ecrire_numero = canvas.drawString, canvas.drawRightString
+    if est_arabe():
+        x_mention, x_numero = x_numero, x_mention
+        ecrire_mention, ecrire_numero = ecrire_numero, ecrire_mention
+    canvas.saveState()
+    canvas.setFillColor(colors.HexColor("#5b6770"))
+    canvas.setFont(POLICE_ARABE if contient_arabe(mention) else "Helvetica", 7.5)
+    ecrire_mention(x_mention, 0.7 * cm, _visuel(mention))
+    canvas.setFont("Helvetica", 7.5)
+    ecrire_numero(x_numero, 0.7 * cm, str(canvas.getPageNumber()))
+    canvas.restoreState()
+
+
 def construire_pdf(elements, paysage=False, titre="Document", filigrane=None):
     tampon = io.BytesIO()
     taille = landscape(A4) if paysage else A4
@@ -320,11 +349,14 @@ def construire_pdf(elements, paysage=False, titre="Document", filigrane=None):
         tampon, pagesize=taille, title=texte_pdf(titre),
         leftMargin=1.5 * cm, rightMargin=1.5 * cm, topMargin=1.3 * cm, bottomMargin=1.3 * cm,
     )
-    if filigrane:
-        dessiner = _filigrane(filigrane)
-        document.build(elements, onFirstPage=dessiner, onLaterPages=dessiner)
-    else:
-        document.build(elements)
+    filigrane_ = _filigrane(filigrane) if filigrane else None
+
+    def dessiner(canvas, doc):
+        if filigrane_:
+            filigrane_(canvas, doc)
+        _pied_de_page(canvas, doc)
+
+    document.build(elements, onFirstPage=dessiner, onLaterPages=dessiner)
     return tampon.getvalue()
 
 
