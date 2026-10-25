@@ -400,6 +400,8 @@ export interface ConfigurationHoraires {
   pauses: { debut: string; fin: string }[];
   max_creneaux_jour_professeur: number;
   max_creneaux_consecutifs_professeur: number;
+  /** False : la salle n'est pas une contrainte (plusieurs cours possibles en meme temps), mais reste attribuee. */
+  considerer_salles: boolean;
 }
 
 export interface DisponibiliteProfesseur {
@@ -484,6 +486,7 @@ export interface VueEmploi {
     duree_creneau: number;
     debut: string;
     fin: string;
+    salles_contraintes?: boolean;
   };
   seances: SeanceGrille[];
   nb_conflits: number;

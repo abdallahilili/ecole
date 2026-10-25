@@ -348,9 +348,11 @@ export function PageEditeurEmploi() {
                           onDragOver={(e) => { if (modifiable) { e.preventDefault(); setSurvol(cle); } }}
                           onDragLeave={() => setSurvol((s) => (s === cle ? null : s))}
                           onDrop={(e) => surDepot(e, j.id, c.debut)}
-                          className={`border border-bordure p-0.5 ${survol === cle ? "bg-amber-100" : ""}`}
+                          className={`border border-bordure p-0.5 ${spans.has(cle) ? "relative" : ""} ${survol === cle ? "bg-amber-100" : ""}`}
                         >
-                          <div className="flex h-full flex-col gap-0.5">
+                          {/* Seance de plusieurs creneaux : la cellule est fusionnee (rowSpan) et la carte la remplit en entier
+                              (une hauteur en % n'est pas resolue dans une cellule fusionnee : on la positionne dans la cellule). */}
+                          <div className={spans.has(cle) ? "absolute inset-0.5 flex flex-col" : "flex h-full flex-col gap-0.5"}>
                             {occupants.map((s) => (
                               <div
                                 key={s.id}
@@ -402,7 +404,11 @@ export function PageEditeurEmploi() {
                 {conflits.length === 0 ? tr("Aucun conflit") : tr("{0} conflit(s)", conflits.length)}
               </p>
               {conflits.length === 0 ? (
-                <p className="text-xs text-texte-attenue">{tr("Toutes les contraintes obligatoires sont respectees (la publication verifie aussi qu'une salle est attribuee).")}</p>
+                <p className="text-xs text-texte-attenue">
+                  {vue?.cadre.salles_contraintes === false
+                    ? tr("Toutes les contraintes obligatoires sont respectees (les salles ne sont pas une contrainte pour cette annee).")
+                    : tr("Toutes les contraintes obligatoires sont respectees (la publication verifie aussi qu'une salle est attribuee).")}
+                </p>
               ) : (
                 <ul className="max-h-80 list-disc space-y-1 overflow-y-auto ps-4 text-xs text-accent-rouge">
                   {conflits.map((c, i) => <li key={`${c.message}${i}`}>{c.message}</li>)}

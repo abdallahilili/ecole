@@ -189,7 +189,8 @@ def vue_emploi(emploi, filtres):
         "emploi": {"id": emploi.pk, "nom": emploi.nom, "statut": emploi.statut, "origine": emploi.origine,
                    "annee_scolaire": emploi.annee_scolaire_id, "rapport": emploi.rapport, "modifiable": emploi.statut == StatutEmploi.BROUILLON},
         "cadre": {"jours": [{"id": j, "nom": NOMS_JOURS[j]} for j in sorted(cadre.jours)], "creneaux": creneaux,
-                  "duree_creneau": cadre.duree_creneau, "debut": hhmm(cadre.debut), "fin": hhmm(cadre.fin)},
+                  "duree_creneau": cadre.duree_creneau, "debut": hhmm(cadre.debut), "fin": hhmm(cadre.fin),
+                  "salles_contraintes": cadre.salles_contraintes},
         "seances": [{
             "id": s.pk, "classe": s.classe_id, "classe_nom": s.classe.nom, "groupe": s.groupe_id,
             "groupe_nom": s.groupe.nom if s.groupe else None, "matiere": s.matiere_id, "matiere_nom": s.matiere.nom_affiche,

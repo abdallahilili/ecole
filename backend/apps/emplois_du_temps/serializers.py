@@ -17,6 +17,7 @@ class ConfigurationHorairesSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigurationHoraires
         fields = "__all__"
+        extra_kwargs = {"considerer_salles": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
     def validate_jours(self, valeur):
         try:

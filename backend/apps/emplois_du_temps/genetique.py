@@ -60,7 +60,8 @@ class Probleme:
         self.valides = set(cadre.creneaux_valides())
         self.positions = [self._positions(u) for u in unites]
         self.bloque_prof = self._bloques(cadre.indispo_prof)
-        self.bloque_salle = self._bloques(cadre.indispo_salle)
+        self.salles_contraintes = cadre.salles_contraintes
+        self.bloque_salle = self._bloques(cadre.indispo_salle) if self.salles_contraintes else {}
         self.preferes = defaultdict(set)
         for prof, liste in (preferences or {}).items():
             for jour, a, b in liste:
@@ -162,7 +163,7 @@ class Occupation:
         total = 0
         for k in range(depart, depart + unite.longueur):
             total += self.prof.get((unite.professeur, jour, k), 0)
-            if salle is not None:
+            if salle is not None and self.p.salles_contraintes:
                 total += self.salle.get((salle, jour, k), 0)
             if unite.groupe is None:
                 total += self.classe_total.get((unite.classe, jour, k), 0)
@@ -176,7 +177,7 @@ class Occupation:
         jour, depart, salle = gene
         for k in range(depart, depart + unite.longueur):
             self.prof[(unite.professeur, jour, k)] += signe
-            if salle is not None:
+            if salle is not None and self.p.salles_contraintes:
                 self.salle[(salle, jour, k)] += signe
             self.classe_total[(unite.classe, jour, k)] += signe
             if unite.groupe is None:
@@ -223,7 +224,7 @@ def diagnostiquer(probleme):
                 f"La classe {cadre.nom('classe', classe)} necessite {charge} creneaux par semaine pour {par_semaine} disponibles.")
     salles = {s for u in probleme.unites for s in u.salles if s is not None}
     besoin_salle = sum(u.longueur for u in probleme.unites if u.salles != [None])
-    if salles and besoin_salle > len(salles) * par_semaine:
+    if cadre.salles_contraintes and salles and besoin_salle > len(salles) * par_semaine:
         messages.append(
             f"{besoin_salle} creneaux de salle sont necessaires par semaine, mais {len(salles)} salle(s) n'offrent que "
             f"{len(salles) * par_semaine} creneaux.")

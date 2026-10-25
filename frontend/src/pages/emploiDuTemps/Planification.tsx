@@ -101,6 +101,16 @@ function FormulaireHoraires() {
         {nombre("duree_max_seance", tr("Duree maximale d'une seance (min)"))}
         {nombre("max_creneaux_jour_professeur", tr("Creneaux max. par jour et par professeur"), tr("Preference : depassement penalise a la generation."))}
         {nombre("max_creneaux_consecutifs_professeur", tr("Creneaux consecutifs max. par professeur"))}
+        <label className="col-span-full flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1 h-4 w-4" disabled={!peutModifier} checked={config.considerer_salles}
+                 onChange={(e) => maj({ considerer_salles: e.target.checked })} />
+          <span>
+            <span className="font-medium text-texte">{tr("Considerer les salles comme une contrainte")}</span>
+            <span className="block text-xs text-texte-attenue">
+              {tr("Decoche : une salle peut accueillir plusieurs cours en meme temps (ni conflit, ni capacite, ni indisponibilite de salle). La salle reste attribuee et affichee dans l'emploi du temps.")}
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className={CARTE}>

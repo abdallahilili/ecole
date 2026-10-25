@@ -28,6 +28,9 @@ class ConfigurationHoraires(models.Model):
     pauses = models.JSONField(default=list, blank=True, db_column="pauses")           # [{"debut": "10:00", "fin": "11:00"}]
     max_creneaux_jour_professeur = models.IntegerField(default=6, db_column="max_creneaux_jour_professeur")
     max_creneaux_consecutifs_professeur = models.IntegerField(default=4, db_column="max_creneaux_consecutifs_professeur")
+    # False : la salle n'est plus une contrainte (une salle peut accueillir plusieurs cours en meme temps, ni capacite ni
+    # indisponibilite verifiees) mais elle reste attribuee et affichee dans l'emploi du temps.
+    considerer_salles = models.BooleanField(default=True, db_column="considerer_salles")
 
     class Meta:
         db_table = "configuration_horaires"

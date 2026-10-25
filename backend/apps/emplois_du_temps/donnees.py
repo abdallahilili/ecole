@@ -65,6 +65,7 @@ def charger_cadre(annee, configuration=None):
         pauses=[(_lire_hhmm(p["debut"]), _lire_hhmm(p["fin"])) for p in configuration.pauses or []],
         indispo_prof=dict(indispo_prof), indispo_salle=dict(indispo_salle),
         capacites={s.id: s.capacite for s in salles}, effectifs=dict(effectifs), affectations=affectations, noms=noms,
+        salles_contraintes=configuration.considerer_salles,
     )
     return cadre, dict(preferences), salles
 
@@ -117,10 +118,17 @@ def construire_unites(annee, cadre, salles):
         if duree < cadre.duree_min or duree > cadre.duree_max:
             diagnostics.append(f"{nom} : une seance durerait {duree} min, hors des limites {cadre.duree_min}-{cadre.duree_max} min.")
         effectif = cadre.effectifs.get((a.classe_id, a.groupe_id), 0)
-        possibles = [s.id for s in utilisables if s.capacite >= effectif]
-        if not possibles:
-            diagnostics.append(f"{nom} : aucune salle disponible d'au moins {effectif} places.")
-        preferee = classes_salle_principale.get(a.classe_id) if not a.groupe_id else None
+        if cadre.salles_contraintes:
+            possibles = [s.id for s in utilisables if s.capacite >= effectif]
+            if not possibles:
+                diagnostics.append(f"{nom} : aucune salle disponible d'au moins {effectif} places.")
+            preferee = classes_salle_principale.get(a.classe_id) if not a.groupe_id else None
+        else:
+            # Salles non contraignantes : la salle habituelle de la classe est conservee dans l'emploi du temps,
+            # sans verification de capacite, de disponibilite ni d'occupation (elle peut servir plusieurs cours a la fois).
+            habituelle = classes_salle_principale.get(a.classe_id)
+            possibles = [habituelle] if habituelle else []
+            preferee = habituelle
         for _ in range(besoin.nombre_seances_semaine):
             unites.append(Unite(
                 cle=len(unites) + 1, classe=a.classe_id, groupe=a.groupe_id, matiere=a.matiere_id,

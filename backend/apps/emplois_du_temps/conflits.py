@@ -4,6 +4,8 @@ Contraintes OBLIGATOIRES (un emploi du temps qui en viole une n'est jamais
 valide, ni publiable) : professeur / salle / classe / groupe simultanes,
 professeur ou salle indisponible, horaires hors cadre ou sur une pause,
 duree hors limites, capacite de salle insuffisante, professeur non affecte.
+Les contraintes de salle (simultaneite, indisponibilite, capacite, salle exigee a la publication) ne
+s'appliquent que si `Cadre.salles_contraintes` : sinon la salle reste informative.
 Les heures sont des minutes depuis minuit."""
 
 from dataclasses import dataclass, field
@@ -49,6 +51,7 @@ class Cadre:
     effectifs: dict = field(default_factory=dict)         # (classe, groupe | None) -> eleves
     affectations: set = field(default_factory=set)        # (prof, matiere, classe, groupe | None)
     noms: dict = field(default_factory=dict)              # ("prof"|"salle"|"classe"|"matiere"|"groupe", id) -> nom
+    salles_contraintes: bool = True                       # False : ni simultaneite, ni indisponibilite, ni capacite, ni salle exigee
 
     def nom(self, genre, identifiant):
         return self.noms.get((genre, identifiant), f"{genre} {identifiant}")
@@ -99,7 +102,7 @@ def detecter(seances, cadre, publication=False):
     par_professeur, par_salle, par_classe = {}, {}, {}
     for s in seances:
         par_professeur.setdefault(s.professeur, []).append(s)
-        if s.salle:
+        if s.salle and cadre.salles_contraintes:
             par_salle.setdefault(s.salle, []).append(s)
         par_classe.setdefault(s.classe, []).append(s)
 
@@ -138,7 +141,7 @@ def detecter(seances, cadre, publication=False):
                     f"{cadre.nom('prof', s.professeur)} est indisponible le {NOMS_JOURS.get(jour)} de {hhmm(a)} a {hhmm(b)} "
                     f"({_etiquette(cadre, s)}, {_quand(s)}).", s))
                 break
-        if s.salle:
+        if s.salle and cadre.salles_contraintes:
             for jour, a, b in cadre.indispo_salle.get(s.salle, []):
                 if jour == s.jour and s.debut < b and a < s.fin:
                     conflits.append(_conflit(
@@ -161,7 +164,7 @@ def detecter(seances, cadre, publication=False):
         if duree < cadre.duree_min or duree > cadre.duree_max:
             conflits.append(_conflit("DUREE", f"{_etiquette(cadre, s)} dure {duree} min : la duree doit etre comprise entre "
                                      f"{cadre.duree_min} et {cadre.duree_max} min.", s))
-        if s.salle and s.salle in cadre.capacites:
+        if s.salle and cadre.salles_contraintes and s.salle in cadre.capacites:
             effectif = cadre.effectifs.get((s.classe, s.groupe), 0)
             if effectif > cadre.capacites[s.salle]:
                 conflits.append(_conflit(
@@ -173,7 +176,7 @@ def detecter(seances, cadre, publication=False):
             conflits.append(_conflit(
                 "PROFESSEUR_NON_AFFECTE",
                 f"{cadre.nom('prof', s.professeur)} n'est pas affecte a {_etiquette(cadre, s)} (voir Affectations des professeurs).", s))
-        if publication and not s.salle:
+        if publication and not s.salle and cadre.salles_contraintes:
             conflits.append(_conflit("SALLE_MANQUANTE", f"Aucune salle pour {_etiquette(cadre, s)} ({_quand(s)}).", s))
     return conflits
 
