@@ -1,3 +1,6 @@
+from datetime import date
+
+from django.db import transaction
 from rest_framework import serializers
 from apps.commun.exceptions import ErreurMetier
 from apps.referentiels.models import Classe
@@ -6,10 +9,29 @@ from .models import Etudiant, Inscription
 
 class EtudiantSerializer(serializers.ModelSerializer):
     nom_complet = serializers.CharField(read_only=True)
+    # Creation depuis la liste d'une classe : l'etudiant est inscrit dans cette classe (annee de la classe).
+    classe_inscription = serializers.PrimaryKeyRelatedField(queryset=Classe.objects.all(), write_only=True, required=False)
 
     class Meta:
         model = Etudiant
         fields = "__all__"
+
+    @transaction.atomic
+    def create(self, donnees):
+        classe = donnees.pop("classe_inscription", None)
+        etudiant = super().create(donnees)
+        if classe is not None:
+            inscription = InscriptionSerializer(data={
+                "etudiant": etudiant.pk, "annee_scolaire": classe.annee_scolaire_id, "classe": classe.pk,
+                "type_inscription": "INSCRIPTION", "statut": "ACTIVE", "date_inscription": date.today().isoformat(),
+            })
+            inscription.is_valid(raise_exception=True)
+            inscription.save()
+        return etudiant
+
+    def update(self, instance, donnees):
+        donnees.pop("classe_inscription", None)
+        return super().update(instance, donnees)
 
     def validate_matricule(self, valeur):
         if not valeur or not valeur.strip():

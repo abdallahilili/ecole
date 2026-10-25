@@ -44,6 +44,18 @@ def _champ_modele(modele, chemin):
 class ListeAvanceeMixin:
     search_fields = ()
     alias_tri = {}   # {"nom_complet": ("nom", "prenom")} : tri sur une propriete calculee
+    # Listes : seuls les elements « en usage » sont renvoyes, sauf ?inactifs=1. `"auto"` : champ booleen `actif` du modele
+    # s'il existe ; sinon un tuple (champ, valeur_en_usage) pour un champ existant (ex. ("statut", "ACTIF")) ou None.
+    filtre_actif = "auto"
+
+    def filtre_actif_courant(self):
+        """(champ ORM, valeur en usage) de cette liste, ou None si le modele n'a pas de notion d'inactif."""
+        if self.filtre_actif != "auto":
+            return self.filtre_actif
+        classe = self.get_serializer_class()
+        modele = getattr(getattr(classe, "Meta", None), "model", None)
+        champ = _champ_modele(modele, "actif") if modele is not None else None
+        return ("actif", True) if isinstance(champ, models.BooleanField) else None
 
     # --------------------------------------------------------- champs exposes
 
@@ -74,6 +86,12 @@ class ListeAvanceeMixin:
             return queryset
         params = self.request.query_params
         champs = self.champs_orm()
+
+        # Listes (pas les actions sur un element) : par defaut, uniquement ce qui est en usage. Un filtre explicite
+        # sur ce champ (?actif=, ?statut=, col_actif=...) ou ?inactifs=1 (afficher aussi les inactifs) le desactive.
+        filtre = None if getattr(self, "detail", False) else self.filtre_actif_courant()
+        if filtre and str(params.get("inactifs", "")).lower() not in VRAI and not params.get(filtre[0]) and not params.get(f"col_{filtre[0]}"):
+            queryset = queryset.filter(**{filtre[0]: filtre[1]})
 
         mots = (params.get("recherche") or "").split()
         if mots and self.search_fields:

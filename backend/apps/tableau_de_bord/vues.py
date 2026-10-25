@@ -42,7 +42,7 @@ class RechercheGlobaleView(APIView):
         resultats = []
         if "etudiants" in modules:
             for e in Etudiant.objects.filter(contient(["matricule", "nom", "prenom", "numero_national"]))[: self.LIMITE]:
-                resultats.append({"type": "Etudiant", "libelle": e.nom_complet, "detail": e.matricule, "chemin": "/etudiants", "recherche": e.matricule})
+                resultats.append({"type": "Etudiant", "libelle": e.nom_complet, "detail": e.matricule, "chemin": "/etudiants/tous", "recherche": e.matricule})
         if "professeurs" in modules:
             for p in Professeur.objects.filter(contient(["matricule", "nom", "prenom"]))[: self.LIMITE]:
                 resultats.append({"type": "Professeur", "libelle": p.nom_complet, "detail": p.matricule, "chemin": "/professeurs", "recherche": p.matricule})

@@ -64,6 +64,7 @@ export interface Classe {
   capacite: number;
   salle_principale: number | null;
   effectif: number;
+  actif?: boolean;
 }
 
 export interface TarifClasse {
@@ -616,5 +617,7 @@ export interface ListePaginee<T> {
   nombre_pages: number;
   /** Colonnes triables/filtrables cote serveur. */
   champs?: string[];
+  /** La liste masque ses elements inactifs par defaut (?inactifs=1 pour les afficher). */
+  inactifs_disponibles?: boolean;
   resultats: T[];
 }

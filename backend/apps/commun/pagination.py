@@ -22,5 +22,7 @@ class PaginationStandard(PageNumberPagination):
             "taille_page": self.page.paginator.per_page,
             "nombre_pages": self.page.paginator.num_pages,
             "champs": champs,
+            # La liste sait masquer ses elements inactifs : l'interface propose alors « Afficher les inactifs ».
+            "inactifs_disponibles": bool(hasattr(vue, "filtre_actif_courant") and vue.filtre_actif_courant()),
             "resultats": data,
         })

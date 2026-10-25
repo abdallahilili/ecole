@@ -64,6 +64,7 @@ class Niveau(models.Model):
     nom_ar = models.CharField(max_length=100, blank=True, default="", db_column="nom_ar")
     code = models.CharField(max_length=20, unique=True, db_column="code")
     ordre = models.IntegerField(default=0, db_column="ordre")
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "niveau"
@@ -106,6 +107,7 @@ class Classe(models.Model):
     salle_principale = models.ForeignKey(
         Salle, null=True, blank=True, on_delete=models.SET_NULL, db_column="id_salle", related_name="classes"
     )
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "classe"
@@ -127,6 +129,7 @@ class TarifClasse(models.Model):
         error_messages={"unique": "Cette classe a deja un tarif."},
     )
     montant = models.DecimalField(max_digits=10, decimal_places=2, db_column="montant")
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "tarif_classe"
@@ -141,6 +144,7 @@ class TarifClasse(models.Model):
 class Groupe(models.Model):
     nom = models.CharField(max_length=50, db_column="nom")
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, db_column="id_classe", related_name="groupes")
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "groupe"
@@ -157,6 +161,7 @@ class Matiere(models.Model):
     nom_ar = models.CharField(max_length=100, blank=True, default="", db_column="nom_ar")
     code = models.CharField(max_length=20, unique=True, db_column="code")
     description = models.CharField(max_length=255, blank=True, default="", db_column="description")
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "matiere"

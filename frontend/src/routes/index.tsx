@@ -17,7 +17,9 @@ const PageTarifs = page(() => import("../pages/referentiels/Tarifs"), "PageTarif
 const PageGroupes = page(() => import("../pages/referentiels/Groupes"), "PageGroupes");
 const PageMatieres = page(() => import("../pages/referentiels/Matieres"), "PageMatieres");
 const PageCoefficientsMatiere = page(() => import("../pages/referentiels/CoefficientsMatiere"), "PageCoefficientsMatiere");
+const PageRegistreEtudiants = page(() => import("../pages/etudiants/RegistreEtudiants"), "PageRegistreEtudiants");
 const PageEtudiants = page(() => import("../pages/etudiants/Etudiants"), "PageEtudiants");
+const PageEtudiantsClasse = page(() => import("../pages/etudiants/Etudiants"), "PageEtudiantsClasse");
 const PageInscriptions = page(() => import("../pages/etudiants/Inscriptions"), "PageInscriptions");
 const PageGrillesFrais = page(() => import("../pages/scolarite/GrillesFrais"), "PageGrillesFrais");
 const PagePaiementsScolarite = page(() => import("../pages/scolarite/PaiementsScolarite"), "PagePaiementsScolarite");
@@ -55,7 +57,9 @@ export const routesProtegees: RouteProtegee[] = [
   { chemin: "/salles", module: "salles", element: <PageSalles /> },
   { chemin: "/matieres", module: "matieres", element: <PageMatieres /> },
   { chemin: "/matieres/coefficients", module: "matieres", element: <PageCoefficientsMatiere /> },
-  { chemin: "/etudiants", module: "etudiants", element: <PageEtudiants /> },
+  { chemin: "/etudiants", module: "etudiants", element: <PageRegistreEtudiants /> },
+  { chemin: "/etudiants/classe/:id", module: "etudiants", element: <PageEtudiantsClasse /> },
+  { chemin: "/etudiants/tous", module: "etudiants", element: <PageEtudiants /> },
   { chemin: "/inscriptions", module: "etudiants", element: <PageInscriptions /> },
   { chemin: "/scolarite", module: "scolarite", element: <PagePaiementsScolarite /> },
   { chemin: "/scolarite/grilles-frais", module: "scolarite", element: <PageGrillesFrais /> },

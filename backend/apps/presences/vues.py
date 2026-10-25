@@ -23,6 +23,7 @@ from apps.commun.pdf import reponse_pdf
 from apps.commun.permissions import PermissionParRole
 from apps.commun.vues_base import ViewSetGestion, ViewSetLecture
 from apps.etudiants.models import Inscription
+from apps.referentiels.models import Classe
 from . import exports, imports, services, whatsapp
 from .models import (
     NotificationWhatsApp, PresenceEtudiant, Seance, StatutNotification, StatutPresence,
@@ -204,6 +205,21 @@ class SeanceViewSet(ViewSetGestion):
     def excel(self, request, pk=None):
         seance = self.get_object()
         return reponse_xlsx(exports.xlsx_liste(exports.contexte_seance(seance)), f"presence_{seance.classe.nom}_{seance.date}.xlsx")
+
+    @action(detail=False, methods=["get"], url_path="modele-classe")
+    def modele_classe(self, request):
+        """Registre de presence mensuel d'une classe (noms des eleves + colonnes des jours) : ?classe=<id>&fichier=pdf|xlsx"""
+        classe = Classe.objects.select_related("annee_scolaire").filter(pk=request.query_params.get("classe") or 0).first()
+        if classe is None:
+            raise ErreurMetier("Classe introuvable.")
+        contexte = exports.contexte_classe(classe)
+        nom = f"registre_presence_{classe.nom}"
+        format_ = request.query_params.get("fichier", "pdf")
+        if format_ == "xlsx":
+            return reponse_xlsx(exports.xlsx_modele_classe(contexte), f"{nom}.xlsx")
+        if format_ == "pdf":
+            return reponse_pdf(exports.pdf_modele_classe(contexte), f"{nom}.pdf")
+        raise ErreurMetier("Format d'export invalide (xlsx, csv ou pdf).")
 
     @action(detail=False, methods=["get"], url_path="modele-vierge/pdf")
     def modele_vierge_pdf(self, request):

@@ -57,6 +57,7 @@ class NiveauSerializer(serializers.ModelSerializer):
     class Meta:
         model = Niveau
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
 
 class SalleSerializer(serializers.ModelSerializer):
@@ -73,6 +74,7 @@ class ClasseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Classe
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
     def get_effectif(self, obj):
         # Nombre d'inscriptions actives (annotation de la vue ; requete directe sinon).
@@ -100,6 +102,7 @@ class TarifClasseSerializer(serializers.ModelSerializer):
     class Meta:
         model = TarifClasse
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
     def validate_montant(self, valeur):
         if valeur <= 0:
@@ -113,6 +116,7 @@ class GroupeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Groupe
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
 
 class MatiereSerializer(serializers.ModelSerializer):
@@ -121,6 +125,7 @@ class MatiereSerializer(serializers.ModelSerializer):
     class Meta:
         model = Matiere
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
 
 class AffectationMatiereClasseSerializer(serializers.ModelSerializer):

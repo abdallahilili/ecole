@@ -68,6 +68,7 @@ class NiveauViewSet(ViewSetGestion):
 
 
 class SalleViewSet(ViewSetGestion):
+    filtre_actif = ("disponible", True)     # une salle indisponible n'est plus utilisee
     queryset = Salle.objects.all()
     serializer_class = SalleSerializer
     roles_lecture = ROLES_LECTURE_GENERALE

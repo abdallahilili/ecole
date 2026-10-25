@@ -14,11 +14,13 @@ export function PageNiveaux() {
         { cle: "nom_ar", titre: tr("Nom (arabe)") },
         { cle: "code", titre: tr("Code") },
       ]}
+      valeursParDefaut={{ actif: true }}
       champs={[
         { nom: "nom", label: tr("Nom"), requis: true, colonnePleine: true },
         { nom: "nom_ar", label: tr("Nom (arabe)"), colonnePleine: true, direction: "rtl" },
         { nom: "code", label: tr("Code"), requis: true },
         { nom: "ordre", label: tr("Ordre pedagogique"), type: "nombre" },
+        { nom: "actif", label: tr("Actif (decocher s'il n'est plus utilise)"), type: "checkbox" },
       ]}
     />
   );

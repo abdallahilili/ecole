@@ -42,6 +42,7 @@ class GrilleFrais(models.Model):
     montant_mensuel = models.DecimalField(max_digits=10, decimal_places=2, db_column="montant_mensuel")
     frais_inscription = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_column="frais_inscription")
     nombre_mois = models.IntegerField(default=9, db_column="nombre_mois")
+    actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
         db_table = "grille_frais"

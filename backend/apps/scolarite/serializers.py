@@ -11,6 +11,7 @@ class GrilleFraisSerializer(serializers.ModelSerializer):
     class Meta:
         model = GrilleFrais
         fields = "__all__"
+        extra_kwargs = {"actif": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
 
     def validate_montant_mensuel(self, valeur):
         if valeur <= 0:

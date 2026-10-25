@@ -1,8 +1,9 @@
 import io
-from datetime import datetime
+from datetime import date, datetime
 
 import openpyxl
 from openpyxl.utils import get_column_letter
+from django.db import transaction
 from django.http import HttpResponse
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,6 +13,7 @@ from apps.commun.constantes import Role
 from apps.commun.excel import orienter_feuille
 from apps.commun.traduction import traduire
 from apps.commun.vues_base import ViewSetGestion
+from apps.referentiels.models import Classe
 from .models import Etudiant, Inscription
 from .serializers import EtudiantSerializer, InscriptionSerializer
 
@@ -53,6 +55,10 @@ class EtudiantViewSet(ViewSetGestion):
         actif = self.request.query_params.get("actif")
         if actif is not None:
             qs = qs.filter(actif=actif.lower() in ("1", "true", "vrai"))
+        # ?classe=<id> : eleves inscrits (inscription active) dans cette classe ; une classe appartient a une seule annee.
+        classe = self.request.query_params.get("classe")
+        if classe:
+            qs = qs.filter(inscriptions__classe_id=classe, inscriptions__statut="ACTIVE").distinct()
         return qs
 
     @action(detail=False, methods=["get"], url_path="modele-import")
@@ -188,11 +194,29 @@ class EtudiantViewSet(ViewSetGestion):
         if not a_creer:
             return Response({"detail": "Le fichier ne contient aucune ligne a importer."}, status=400)
 
-        Etudiant.objects.bulk_create(a_creer)
+        # ?classe=<id> : les eleves importes sont inscrits dans cette classe (import depuis la liste d'une classe).
+        classe = None
+        if request.query_params.get("classe"):
+            classe = Classe.objects.filter(pk=request.query_params["classe"]).select_related("annee_scolaire").first()
+            if classe is None:
+                return Response({"detail": "Classe introuvable."}, status=400)
+            effectif = Inscription.objects.filter(classe=classe, statut="ACTIVE").count()
+            if effectif + len(a_creer) > classe.capacite:
+                return Response({"detail": f"La classe '{classe.nom}' a atteint sa capacite maximale ({classe.capacite} eleves)."}, status=400)
+
+        with transaction.atomic():
+            Etudiant.objects.bulk_create(a_creer)
+            if classe is not None:
+                crees = Etudiant.objects.filter(matricule__in=[e.matricule for e in a_creer])
+                Inscription.objects.bulk_create([
+                    Inscription(etudiant=e, annee_scolaire=classe.annee_scolaire, classe=classe, date_inscription=date.today())
+                    for e in crees
+                ])
         return Response({"detail": f"{len(a_creer)} etudiant(s) importe(s) avec succes.", "nombre_importes": len(a_creer)}, status=201)
 
 
 class InscriptionViewSet(ViewSetGestion):
+    filtre_actif = ("statut", "ACTIVE")
     queryset = Inscription.objects.select_related("etudiant", "classe", "groupe", "annee_scolaire").all()
     serializer_class = InscriptionSerializer
     roles_lecture = ROLES_LECTURE

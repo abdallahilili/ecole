@@ -11,6 +11,7 @@ export function PageInscriptions() {
       cleLigne={(i) => i.id}
       champRecherche={false}
       valeursParDefaut={{ type_inscription: "INSCRIPTION", statut: "ACTIVE" }}
+      estInactif={(i) => i.statut !== "ACTIVE"}
       colonnes={[
         { cle: "etudiant_matricule", titre: tr("Matricule") },
         { cle: "etudiant_nom", titre: tr("Etudiant") },

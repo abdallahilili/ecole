@@ -1,4 +1,4 @@
-from apps.commun.constantes import Role
+from apps.commun.constantes import Role, StatutProfesseur
 from apps.commun.vues_base import ViewSetGestion
 from .models import Professeur, AffectationProfesseur
 from .serializers import ProfesseurSerializer, AffectationProfesseurSerializer
@@ -10,6 +10,7 @@ ROLES_ECRITURE = [Role.ADMINISTRATEUR, Role.DIRECTEUR]
 
 
 class ProfesseurViewSet(ViewSetGestion):
+    filtre_actif = ("statut", StatutProfesseur.ACTIF)
     queryset = Professeur.objects.all()
     serializer_class = ProfesseurSerializer
     roles_lecture = ROLES_LECTURE

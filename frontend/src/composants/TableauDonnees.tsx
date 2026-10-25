@@ -23,6 +23,8 @@ interface Props<T> {
   chargement?: boolean;
   cleLigne: (ligne: T) => Cle;
   actions?: (ligne: T) => ReactNode;
+  /** Ligne d'un element inactif (n'est plus utilise) : affichee attenuee. */
+  ligneInactive?: (ligne: T) => boolean;
   page?: number;
   nombrePages?: number;
   onChangerPage?: (page: number) => void;
@@ -80,7 +82,7 @@ function ChampFiltre({ valeur, onChange }: { valeur: string; onChange: (v: strin
 }
 
 export function TableauDonnees<T>({
-  colonnes, lignes, chargement, cleLigne, actions, page = 1, nombrePages = 1, onChangerPage,
+  colonnes, lignes, chargement, cleLigne, actions, ligneInactive, page = 1, nombrePages = 1, onChangerPage,
   videMessage = tr("Aucune donnee."), stockage, champsServeur, tri = "", onTri, filtresColonnes, onFiltreColonne,
   selection, onSelection, barreOutils,
 }: Props<T>) {
@@ -342,7 +344,7 @@ export function TableauDonnees<T>({
                 const choisie = !!selection?.has(cle);
                 const fond = choisie ? "bg-blue-50" : "bg-fond-carte";
                 return (
-                  <tr key={cle} className="border-b border-bordure last:border-0 hover:bg-fond">
+                  <tr key={cle} className={`border-b border-bordure last:border-0 hover:bg-fond ${ligneInactive?.(ligne) ? "opacity-60" : ""}`}>
                     {avecSelection && (
                       <td className={`sticky start-0 z-10 w-10 px-3 py-2 ${fond}`}>
                         <input type="checkbox" checked={choisie} onChange={() => basculerLigne(cle)} />

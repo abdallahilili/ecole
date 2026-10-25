@@ -9,6 +9,7 @@ export function PageSalles() {
       url="/referentiels/salles/"
       cleLigne={(s) => s.id}
       valeursParDefaut={{ disponible: true, capacite: 30 }}
+      estInactif={(s) => !s.disponible}
       colonnes={[
         { cle: "nom", titre: tr("Nom") },
         { cle: "capacite", titre: tr("Capacite") },

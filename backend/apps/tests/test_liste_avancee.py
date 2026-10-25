@@ -49,7 +49,8 @@ class BaseListe(TestCase):
         return etudiant
 
     def matricules(self, url=ETUDIANTS, **params):
-        reponse = self.client.get(url, params)
+        # inactifs=1 : ces tests portent sur la recherche, le tri et les filtres, pas sur le masquage des inactifs.
+        reponse = self.client.get(url, {"inactifs": 1, **params})
         self.assertEqual(reponse.status_code, 200, reponse.content)
         return [e.get("matricule") or e.get("nom") for e in reponse.json()["resultats"]]
 
@@ -129,7 +130,7 @@ class ExportTests(BaseListe):
         return [[c.value for c in ligne] for ligne in feuille.iter_rows()]
 
     def test_export_excel_colonnes_choisies_et_valeurs_lisibles(self):
-        reponse = self.client.get(self.URL, {"colonnes": self.COLONNES, "tri": "matricule"})
+        reponse = self.client.get(self.URL, {"colonnes": self.COLONNES, "tri": "matricule", "inactifs": 1})
         self.assertEqual(reponse.status_code, 200)
         lignes = self.lire_xlsx(reponse)
         self.assertEqual(lignes[0], ["Matricule", "Nom complet", "Naissance", "Actif"])
@@ -139,7 +140,7 @@ class ExportTests(BaseListe):
     def test_export_du_resultat_filtre_de_la_page_ou_de_la_selection(self):
         filtre = self.lire_xlsx(self.client.get(self.URL, {"colonnes": self.COLONNES, "col_sexe": "F", "recherche": "awa"}))
         self.assertEqual([l[0] for l in filtre[1:]], ["E1"])
-        selection = self.lire_xlsx(self.client.get(self.URL, {"colonnes": self.COLONNES, "ids": f"{self.moussa.id},{self.fall.id}", "tri": "matricule"}))
+        selection = self.lire_xlsx(self.client.get(self.URL, {"colonnes": self.COLONNES, "ids": f"{self.moussa.id},{self.fall.id}", "tri": "matricule", "inactifs": 1}))
         self.assertEqual([l[0] for l in selection[1:]], ["E2", "E3"])
 
     def test_export_csv_compatible_excel_francais(self):

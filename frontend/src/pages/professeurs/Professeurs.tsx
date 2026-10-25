@@ -10,6 +10,7 @@ export function PageProfesseurs() {
       url="/professeurs/professeurs/"
       cleLigne={(p) => p.id}
       valeursParDefaut={{ statut: "ACTIF", mode_remuneration: "HORAIRE" }}
+      estInactif={(p) => p.statut !== "ACTIF"}
       colonnes={[
         { cle: "matricule", titre: tr("Matricule") },
         { cle: "nom_complet", titre: tr("Nom complet") },

@@ -19,12 +19,14 @@ export function PageTarifs() {
           rendu: (t) => `${Number(t.montant).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${UNITE_MONETAIRE}`,
         },
       ]}
+      valeursParDefaut={{ actif: true }}
       champs={[
         {
           nom: "classe", label: tr("Classe"), type: "select", requis: true, colonnePleine: true,
           optionsUrl: "/referentiels/classes/?annee_active=1", optionLabel: (c) => `${c.nom} (${c.annee_scolaire_libelle})`,
         },
         { nom: "montant", label: tr("Montant (UM)"), type: "decimal", requis: true, colonnePleine: true },
+        { nom: "actif", label: tr("Actif (decocher s'il n'est plus utilise)"), type: "checkbox" },
       ]}
     />
   );

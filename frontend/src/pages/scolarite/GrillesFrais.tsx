@@ -14,7 +14,7 @@ export function PageGrillesFrais() {
       url="/scolarite/grilles-frais/"
       cleLigne={(g) => g.id}
       champRecherche={false}
-      valeursParDefaut={{ nombre_mois: 9, frais_inscription: 0 }}
+      valeursParDefaut={{ nombre_mois: 9, frais_inscription: 0, actif: true }}
       colonnes={[
         { cle: "annee_scolaire_libelle", titre: tr("Annee scolaire") },
         { cle: "niveau_nom", titre: tr("Niveau") },
@@ -34,6 +34,7 @@ export function PageGrillesFrais() {
         { nom: "montant_mensuel", label: tr("Montant mensuel"), type: "decimal", requis: true },
         { nom: "frais_inscription", label: tr("Frais d'inscription"), type: "decimal" },
         { nom: "nombre_mois", label: tr("Nombre de mois"), type: "nombre" },
+        { nom: "actif", label: tr("Actif (decocher s'il n'est plus utilise)"), type: "checkbox" },
       ]}
       />
     </div>

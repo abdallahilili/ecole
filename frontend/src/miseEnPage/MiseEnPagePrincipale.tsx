@@ -1,11 +1,12 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { Search, User, LogOut } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Search, User, LogOut, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { ChangerMotDePasse } from "../composants/ChangerMotDePasse";
-import { MENU } from "./menu";
+import { MENU, estGroupe } from "./menu";
+import type { ElementMenu, GroupeMenu } from "./menu";
 import { SelecteurLangue } from "../composants/SelecteurLangue";
 
 import { tr, estArabe } from "../i18n";
@@ -73,6 +74,66 @@ function RechercheGlobale() {
   );
 }
 
+const CLE_GROUPES_OUVERTS = "menu_groupes_ouverts";
+
+function groupesOuvertsMemorises(): string[] {
+  try {
+    const valeur = JSON.parse(localStorage.getItem(CLE_GROUPES_OUVERTS) ?? "[]");
+    return Array.isArray(valeur) ? valeur : [];
+  } catch {
+    return [];
+  }
+}
+
+function cheminActif(chemin: string, pathname: string) {
+  return chemin === "/" ? pathname === "/" : pathname === chemin || pathname.startsWith(`${chemin}/`);
+}
+
+function LienMenu({ element, reduit, imbrique = false }: { element: ElementMenu; reduit: boolean; imbrique?: boolean }) {
+  return (
+    <NavLink
+      to={element.chemin}
+      end={element.chemin === "/"}
+      title={element.libelle}
+      className={({ isActive }) =>
+        `mb-0.5 flex items-center gap-3 rounded px-2.5 py-2 text-sm ${imbrique && !reduit ? "ms-6 me-2" : "mx-2"} ${
+          isActive ? "bg-entete text-white" : "text-texte hover:bg-fond"
+        }`
+      }
+    >
+      <element.icone size={imbrique && !reduit ? 15 : 17} className="shrink-0" />
+      {!reduit && <span className="truncate">{element.libelle}</span>}
+    </NavLink>
+  );
+}
+
+/** Groupe depliable (sous-menu). Il s'ouvre tout seul quand la page courante en fait partie ;
+ * l'etat ouvert/ferme choisi est memorise. Barre reduite : les elements sont affiches a plat, en icones. */
+function GroupeDepliable({ groupe, elements, reduit, ouvert, onBascule }: {
+  groupe: GroupeMenu; elements: ElementMenu[]; reduit: boolean; ouvert: boolean; onBascule: () => void;
+}) {
+  const { pathname } = useLocation();
+  const contientActif = elements.some((e) => cheminActif(e.chemin, pathname));
+  if (reduit) return <>{elements.map((e) => <LienMenu key={e.chemin} element={e} reduit />)}</>;
+  return (
+    <div className="mb-0.5">
+      <button
+        type="button"
+        onClick={onBascule}
+        aria-expanded={ouvert}
+        className={`mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded px-2.5 py-2 text-start text-sm font-medium hover:bg-fond ${
+          contientActif && !ouvert ? "text-entete" : "text-texte"
+        }`}
+      >
+        <groupe.icone size={17} className="shrink-0" />
+        <span className="flex-1 truncate">{groupe.libelle}</span>
+        <ChevronDown size={14} className={`shrink-0 text-texte-attenue transition-transform ${ouvert ? "" : "-rotate-90 rtl:rotate-90"}`} />
+      </button>
+      {ouvert && elements.map((e) => <LienMenu key={e.chemin} element={e} reduit={false} imbrique />)}
+    </div>
+  );
+}
+
 /** Mise en page simple et professionnelle : barre superieure, sidebar
  * a icones, contenu sur fond clair. Pas de surcharge visuelle (cf.
  * cahier des charges section 10). */
@@ -81,10 +142,25 @@ export function MiseEnPagePrincipale({ children }: { children: ReactNode }) {
   const [reduit, setReduit] = useState(false);
   const [motDePasseOuvert, setMotDePasseOuvert] = useState(false);
 
-  // Deux entrees du menu partagent le module "etudiants" et deux le
-  // module "professeurs" (listes distinctes au sein d'un meme domaine) :
-  // on deduplique par chemin, pas par module, pour les afficher toutes.
-  const visibles = MENU.filter((e) => utilisateur?.modules.includes(e.module));
+  // Plusieurs elements du menu peuvent partager un module (listes distinctes d'un meme domaine) : on filtre
+  // chaque element selon les droits ; un groupe sans element visible disparait.
+  const autorise = (e: ElementMenu) => !!utilisateur?.modules.includes(e.module);
+  const { pathname } = useLocation();
+  const [groupesOuverts, setGroupesOuverts] = useState<string[]>(groupesOuvertsMemorises);
+
+  // La page courante ouvre son groupe (navigation par lien, recherche globale, retour arriere...).
+  useEffect(() => {
+    const groupe = MENU.find((e): e is GroupeMenu => estGroupe(e) && e.elements.some((x) => cheminActif(x.chemin, pathname)));
+    if (groupe) setGroupesOuverts((o) => (o.includes(groupe.cle) ? o : [...o, groupe.cle]));
+  }, [pathname]);
+
+  function basculer(cle: string) {
+    setGroupesOuverts((ouverts) => {
+      const suite = ouverts.includes(cle) ? ouverts.filter((c) => c !== cle) : [...ouverts, cle];
+      try { localStorage.setItem(CLE_GROUPES_OUVERTS, JSON.stringify(suite)); } catch { /* stockage indisponible */ }
+      return suite;
+    });
+  }
 
   return (
     <div className="flex h-screen flex-col bg-fond">
@@ -112,22 +188,21 @@ export function MiseEnPagePrincipale({ children }: { children: ReactNode }) {
       <div className="flex flex-1 overflow-hidden">
         <nav className={`flex shrink-0 flex-col border-e border-bordure bg-fond-barre transition-all ${reduit ? "w-14" : "w-56"}`}>
           <div className="flex-1 overflow-y-auto py-2">
-            {visibles.map((e) => (
-              <NavLink
-                key={e.chemin}
-                to={e.chemin}
-                end={e.chemin === "/"}
-                title={e.libelle}
-                className={({ isActive }) =>
-                  `mx-2 mb-0.5 flex items-center gap-3 rounded px-2.5 py-2 text-sm ${
-                    isActive ? "bg-entete text-white" : "text-texte hover:bg-fond"
-                  }`
-                }
-              >
-                <e.icone size={17} className="shrink-0" />
-                {!reduit && <span className="truncate">{e.libelle}</span>}
-              </NavLink>
-            ))}
+            {MENU.map((entree) => {
+              if (!estGroupe(entree)) return autorise(entree) ? <LienMenu key={entree.chemin} element={entree} reduit={reduit} /> : null;
+              const elements = entree.elements.filter(autorise);
+              if (elements.length === 0) return null;
+              return (
+                <GroupeDepliable
+                  key={entree.cle}
+                  groupe={entree}
+                  elements={elements}
+                  reduit={reduit}
+                  ouvert={groupesOuverts.includes(entree.cle)}
+                  onBascule={() => basculer(entree.cle)}
+                />
+              );
+            })}
           </div>
           <button
             onClick={() => setReduit((r) => !r)}

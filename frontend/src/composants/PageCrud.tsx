@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Search, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Download, Power, PowerOff } from "lucide-react";
 import { api, messageErreur } from "../services/api";
 import { useListeAvancee, useOptions } from "../hooks/useListe";
 import { useNotifications } from "./Notifications";
@@ -50,6 +50,9 @@ interface Props<T> {
   largeurForm?: string;
   /** Remplace le message de confirmation de suppression (ex. quand "supprimer" archive). */
   messageSuppression?: string;
+  /** Element qui n'est plus utilise (defaut : `actif` a false). Les inactifs sont masques de la liste tant que
+   * « Afficher les inactifs » n'est pas coche ; ils apparaissent alors attenues. */
+  estInactif?: (ligne: T) => boolean;
 }
 
 function ChampEntree({ champ, valeur, onChange }: { champ: ChampFormulaire; valeur: any; onChange: (v: any) => void }) {
@@ -126,12 +129,13 @@ export function PageCrud<T extends Record<string, any>>({
   titre, url, colonnes, champs, cleLigne,
   peutCreer = true, peutModifier = true, peutSupprimer = true,
   filtres, parametresFiltre = {}, valeursParDefaut = {}, champRecherche = true,
-  titreForm, enteteExtra, surChangement, largeurForm, messageSuppression,
+  titreForm, enteteExtra, surChangement, largeurForm, messageSuppression, estInactif = (ligne) => ligne.actif === false,
 }: Props<T>) {
+  const [inactifs, setInactifs] = useState(false);
   const {
-    resultats, chargement, page, setPage, nombrePages, total, recharger, parametres,
+    resultats, chargement, page, setPage, nombrePages, total, recharger, parametres, inactifsDisponibles,
     recherche, setRecherche, selection, setSelection, proprietesTableau,
-  } = useListeAvancee<T>(url, parametresFiltre);
+  } = useListeAvancee<T>(url, inactifs ? { ...parametresFiltre, inactifs: 1 } : parametresFiltre);
   const { notifierSucces, notifierErreur } = useNotifications();
   const { demanderConfirmation } = useConfirmation();
   const [exportOuvert, setExportOuvert] = useState(false);
@@ -203,6 +207,17 @@ export function PageCrud<T extends Record<string, any>>({
     }
   }
 
+  /** Desactive (n'est plus utilise) ou reactive un element sans le supprimer : son historique est conserve. */
+  async function basculerActif(ligne: T) {
+    try {
+      await api.patch(`${url}${cleLigne(ligne)}/`, { actif: !ligne.actif });
+      notifierSucces(ligne.actif ? tr("Element desactive : il n'apparait plus dans les listes.") : tr("Element reactive."));
+      recharger();
+    } catch (err) {
+      notifierErreur(messageErreur(err));
+    }
+  }
+
   async function supprimer(ligne: T) {
     const confirme = await demanderConfirmation({
       titre: tr("Confirmer la suppression"),
@@ -248,6 +263,12 @@ export function PageCrud<T extends Record<string, any>>({
           </div>
         )}
         {filtres}
+        {inactifsDisponibles && (
+          <label className="flex items-center gap-1.5 text-sm text-texte-attenue">
+            <input type="checkbox" checked={inactifs} onChange={(e) => setInactifs(e.target.checked)} />
+            {tr("Afficher les inactifs (non utilises)")}
+          </label>
+        )}
       </div>
 
       <TableauDonnees
@@ -274,6 +295,7 @@ export function PageCrud<T extends Record<string, any>>({
         )}
         colonnes={colonnes}
         lignes={resultats}
+        ligneInactive={estInactif}
         chargement={chargement}
         cleLigne={cleLigne}
         page={page}
@@ -282,7 +304,19 @@ export function PageCrud<T extends Record<string, any>>({
         actions={
           peutModifier || peutSupprimer
             ? (ligne) => (
-                <div className="flex justify-end gap-2">
+                <div className="flex items-center justify-end gap-2">
+                  {estInactif(ligne) && (
+                    <span className="rounded bg-fond-barre px-1.5 py-0.5 text-xs text-texte-attenue">{tr("Inactif")}</span>
+                  )}
+                  {peutModifier && typeof ligne.actif === "boolean" && (
+                    <button
+                      onClick={() => basculerActif(ligne)}
+                      className="text-texte-attenue hover:text-entete"
+                      title={ligne.actif ? tr("Desactiver (n'est plus utilise)") : tr("Reactiver")}
+                    >
+                      {ligne.actif ? <PowerOff size={15} /> : <Power size={15} />}
+                    </button>
+                  )}
                   {peutModifier && (
                     <button onClick={() => ouvrirModification(ligne)} className="text-texte-attenue hover:text-entete">
                       <Pencil size={15} />

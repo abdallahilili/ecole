@@ -22,7 +22,7 @@ LIBELLES_AR = {
     "Responsable de la scolarite": "مسؤول المصاريف الدراسية", "Responsable pedagogique": "المسؤول البيداغوجي",
     "Au nombre d'heures": "بعدد الساعات", "Salaire fixe": "راتب ثابت",
     "Adresse": "العنوان", "Annee scolaire :": "السنة الدراسية :",
-    "N°": "رقم", "Note / statut": "النقطة / الحالة",
+    "N°": "رقم", "Abs.": "غياب", "Ret.": "تأخر", "Mois": "الشهر", "Effectif": "العدد", "Legende": "الرموز", "Note / statut": "النقطة / الحالة",
     # Bulletins
     "Matieres": "المواد", "Moy.": "المعدل", "Coeff": "المعامل", "Rang": "الترتيب", "Total": "المجموع", "TOTAL": "المجموع",
     "T1": "ف1", "T2": "ف2", "T3": "ف3", "Bulletins": "كشوف النقاط",

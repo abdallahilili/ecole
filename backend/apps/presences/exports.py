@@ -14,6 +14,7 @@ from apps.commun.pdf import (Tableau as Table,
     STYLE_NORMAL, STYLE_TITRE, construire_pdf, entete_etablissement, p, style_tableau,
 )
 from .models import StatutPresence
+from apps.etudiants.services import eleves_classe
 from .services import liste_appel
 
 LIGNES_MODELE_VIERGE = 40
@@ -116,6 +117,90 @@ def xlsx_liste(contexte):
         ])
     for index, largeur in enumerate([6, 14, 34, 10, 10, 10, 36], start=1):
         feuille.column_dimensions[get_column_letter(index)].width = largeur
+    return classeur
+
+
+# --------------------------------------------------- modele de presence d'une classe
+
+JOURS_MODELE = 31
+
+
+def contexte_classe(classe):
+    """Eleves (inscriptions actives) de la classe pour le modele de presence mensuel."""
+    eleves = eleves_classe(classe.pk, classe.annee_scolaire_id)
+    return {
+        "annee": classe.annee_scolaire.libelle,
+        "classe": classe.nom,
+        "lignes": [
+            {"numero": i, "matricule": inscription.etudiant.matricule, "nom_complet": inscription.etudiant.nom_complet}
+            for i, inscription in enumerate(eleves, start=1)
+        ],
+    }
+
+
+def pdf_modele_classe(contexte):
+    """Feuille de presence mensuelle imprimable (paysage) : une ligne par eleve, une colonne par jour du mois,
+    totaux d'absences et de retards, et les mentions a remplir a la main (mois, matiere, professeur)."""
+    largeur = 27.25 * cm
+    infos = Table(
+        [
+            [p(f"Annee scolaire : {contexte['annee']}"), p(f"Classe : {contexte['classe']}"),
+             p(f"Effectif : {len(contexte['lignes'])}")],
+            [p("Mois : ____________________"), p("Matiere : ____________________"), p("Professeur : ____________________")],
+        ],
+        colWidths=[largeur / 3] * 3,
+    )
+    jours = [str(j) for j in range(1, JOURS_MODELE + 1)]
+    donnees = [["N°", "Matricule", "Nom complet"] + jours + ["Abs.", "Ret."]]
+    for ligne in contexte["lignes"]:
+        donnees.append([ligne["numero"], p(ligne["matricule"]), p(ligne["nom_complet"])] + [""] * JOURS_MODELE + ["", ""])
+    largeurs = [0.8 * cm, 2.1 * cm, 5.3 * cm] + [0.55 * cm] * JOURS_MODELE + [1 * cm, 1 * cm]
+    tableau = Table(donnees, repeatRows=1, colWidths=largeurs, rowHeights=[0.7 * cm] + [0.62 * cm] * len(contexte["lignes"]))
+    style = style_tableau()
+    premiere_jour, derniere_jour = 3, 2 + JOURS_MODELE
+    style.add("FONTSIZE", (premiere_jour, 0), (derniere_jour, 0), 6.5)
+    style.add("ALIGN", (premiere_jour, 0), (derniere_jour, 0), "CENTER")
+    style.add("LEFTPADDING", (premiere_jour, 0), (derniere_jour, -1), 0)
+    style.add("RIGHTPADDING", (premiere_jour, 0), (derniere_jour, -1), 0)
+    tableau.setStyle(style)
+    elements = entete_etablissement(sum(largeurs)) + [
+        p("REGISTRE DE PRESENCE MENSUEL", STYLE_TITRE), infos, Spacer(1, 6), tableau, Spacer(1, 8),
+        p("Legende : P = present, A = absent, R = retard", STYLE_NORMAL), Spacer(1, 8),
+        p("Signature du professeur : ______________________          Visa du directeur : ______________________", STYLE_NORMAL),
+    ]
+    return construire_pdf(elements, paysage=True, titre="Registre de presence")
+
+
+def xlsx_modele_classe(contexte):
+    classeur = openpyxl.Workbook()
+    feuille = classeur.active
+    feuille.title = traduire("Registre de presence")[:31]
+    orienter_feuille(feuille)
+    feuille.append([_nom_etablissement()])
+    feuille.append([traduire("REGISTRE DE PRESENCE MENSUEL")])
+    feuille["A1"].font = Font(bold=True, size=13)
+    feuille["A2"].font = Font(bold=True, size=12)
+    for etiquette, valeur in (
+        ("Annee scolaire", contexte["annee"]), ("Classe", contexte["classe"]), ("Effectif", len(contexte["lignes"])),
+        ("Mois", ""), ("Matiere", ""), ("Professeur", ""),
+    ):
+        feuille.append([traduire(etiquette), valeur])
+    feuille.append([])
+    entete = [traduire(h) for h in ["N°", "Matricule", "Nom complet"]] + list(range(1, JOURS_MODELE + 1)) + [traduire("Abs."), traduire("Ret.")]
+    feuille.append(entete)
+    ligne_entete = feuille.max_row
+    for index in range(1, len(entete) + 1):
+        cellule = feuille.cell(row=ligne_entete, column=index)
+        cellule.font = Font(bold=True)
+        cellule.fill = PatternFill("solid", fgColor="EEF1F3")
+        cellule.alignment = Alignment(horizontal="center")
+    for ligne in contexte["lignes"]:
+        feuille.append([ligne["numero"], ligne["matricule"], ligne["nom_complet"]])
+    feuille.append([])
+    feuille.append([traduire("Legende : P = present, A = absent, R = retard")])
+    for index, largeur in enumerate([6, 14, 34] + [4.5] * JOURS_MODELE + [7, 7], start=1):
+        feuille.column_dimensions[get_column_letter(index)].width = largeur
+    feuille.freeze_panes = feuille.cell(row=ligne_entete + 1, column=4)
     return classeur
 
 

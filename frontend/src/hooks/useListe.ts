@@ -14,6 +14,7 @@ export function useListe<T>(url: string, parametres: Record<string, any> = {}, o
   const [page, setPage] = useState(1);
   const [nombrePages, setNombrePages] = useState(1);
   const [champs, setChamps] = useState<string[]>([]);
+  const [inactifsDisponibles, setInactifsDisponibles] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const parametresRef = useRef(parametres);
@@ -34,6 +35,7 @@ export function useListe<T>(url: string, parametres: Record<string, any> = {}, o
         setTotal(donnees.total ?? 0);
         setNombrePages(donnees.nombre_pages ?? 1);
         setChamps(donnees.champs ?? []);
+        setInactifsDisponibles(!!donnees.inactifs_disponibles);
       }
     } catch (e: any) {
       setErreur(tr("Impossible de charger les donnees."));
@@ -51,7 +53,7 @@ export function useListe<T>(url: string, parametres: Record<string, any> = {}, o
     setPage(1);
   }, [JSON.stringify(parametres)]);
 
-  return { resultats, total, page, setPage, nombrePages, champs, chargement, erreur, recharger };
+  return { resultats, total, page, setPage, nombrePages, champs, inactifsDisponibles, chargement, erreur, recharger };
 }
 
 /** Liste serveur avec recherche globale, tri, filtres par colonne et selection multiple.

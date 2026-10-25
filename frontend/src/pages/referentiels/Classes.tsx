@@ -139,7 +139,7 @@ export function PageClasses() {
       titre={tr("Classes")}
       url="/referentiels/classes/"
       cleLigne={(c) => c.id}
-      valeursParDefaut={{ capacite: 40 }}
+      valeursParDefaut={{ capacite: 40, actif: true }}
       colonnes={[
         { cle: "nom", titre: tr("Classe") },
         { cle: "niveau_nom", titre: tr("Niveau") },
@@ -162,6 +162,7 @@ export function PageClasses() {
           nom: "salle_principale", label: tr("Salle principale"), type: "select",
           optionsUrl: "/referentiels/salles/", optionLabel: (s) => tr("{0} ({1} places)", s.nom, s.capacite),
         },
+        { nom: "actif", label: tr("Actif (decocher s'il n'est plus utilise)"), type: "checkbox" },
       ]}
     />
   );
