@@ -7,6 +7,7 @@ class AnneeScolaireSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnneeScolaire
         fields = "__all__"
+        read_only_fields = ("archivee", "date_archivage")   # modifies uniquement par l'archivage (suppression)
 
     def validate(self, donnees):
         debut = donnees.get("date_debut", getattr(self.instance, "date_debut", None))
@@ -29,6 +30,15 @@ class AnneeScolaireSerializer(serializers.ModelSerializer):
             if d_suiv <= d_prec:
                 raise ErreurMetier(f"{nom_suiv.capitalize()} doit etre posterieur(e) a {nom_prec}.")
 
+        for suffixe in ("", "2"):
+            debut_vac, fin_vac = valeur(f"debut_vacances{suffixe}"), valeur(f"fin_vacances{suffixe}")
+            if debut_vac and fin_vac and fin_vac < debut_vac:
+                raise ErreurMetier(f"La fin des vacances {suffixe or 1} ne peut pas preceder leur debut.")
+        vacances = [(d, f) for d, f in ((valeur("debut_vacances"), valeur("fin_vacances")),
+                                        (valeur("debut_vacances2"), valeur("fin_vacances2"))) if d and f]
+        if len(vacances) == 2 and vacances[1][0] <= vacances[0][1]:
+            raise ErreurMetier("Les vacances 2 doivent commencer apres la fin des vacances 1.")
+
         for n in (1, 2, 3):
             debut_exam, fin_exam = valeur(f"debut_examen{n}"), valeur(f"fin_examen{n}")
             if debut_exam and fin_exam and fin_exam < debut_exam:
@@ -42,6 +52,8 @@ class AnneeScolaireSerializer(serializers.ModelSerializer):
 
 
 class NiveauSerializer(serializers.ModelSerializer):
+    nom_affiche = serializers.CharField(read_only=True)
+
     class Meta:
         model = Niveau
         fields = "__all__"
@@ -54,7 +66,7 @@ class SalleSerializer(serializers.ModelSerializer):
 
 
 class ClasseSerializer(serializers.ModelSerializer):
-    niveau_nom = serializers.CharField(source="niveau.nom", read_only=True)
+    niveau_nom = serializers.CharField(source="niveau.nom_affiche", read_only=True)
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)
     effectif = serializers.SerializerMethodField()
 
@@ -82,7 +94,7 @@ class ClasseSerializer(serializers.ModelSerializer):
 
 class TarifClasseSerializer(serializers.ModelSerializer):
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
-    niveau_nom = serializers.CharField(source="classe.niveau.nom", read_only=True)
+    niveau_nom = serializers.CharField(source="classe.niveau.nom_affiche", read_only=True)
     annee_scolaire_libelle = serializers.CharField(source="classe.annee_scolaire.libelle", read_only=True)
 
     class Meta:
@@ -104,13 +116,15 @@ class GroupeSerializer(serializers.ModelSerializer):
 
 
 class MatiereSerializer(serializers.ModelSerializer):
+    nom_affiche = serializers.CharField(read_only=True)
+
     class Meta:
         model = Matiere
         fields = "__all__"
 
 
 class AffectationMatiereClasseSerializer(serializers.ModelSerializer):
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
 
     class Meta:

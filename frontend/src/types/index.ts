@@ -24,6 +24,8 @@ export interface AnneeScolaire {
   debut_trimestre3: string | null;
   debut_vacances: string | null;
   fin_vacances: string | null;
+  debut_vacances2: string | null;
+  fin_vacances2: string | null;
   debut_examen1: string | null;
   fin_examen1: string | null;
   debut_examen2: string | null;
@@ -37,6 +39,8 @@ export interface AnneeScolaire {
 export interface Niveau {
   id: number;
   nom: string;
+  nom_ar: string;
+  nom_affiche: string;
   code: string;
   ordre: number;
 }
@@ -81,6 +85,8 @@ export interface Groupe {
 export interface Matiere {
   id: number;
   nom: string;
+  nom_ar: string;
+  nom_affiche: string;
   code: string;
   description: string;
 }
@@ -608,5 +614,7 @@ export interface ListePaginee<T> {
   page: number;
   taille_page: number;
   nombre_pages: number;
+  /** Colonnes triables/filtrables cote serveur. */
+  champs?: string[];
   resultats: T[];
 }

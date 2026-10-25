@@ -1,18 +1,8 @@
-# Gestion d'ecole privee - Backend (Phases 1 a 3)
+# Gestion d'ecole privee - Backend (Phases 1 a 8)
 
-Backend Django REST Framework pour la gestion d'une ecole privee
-(Administration, Scolarite/Inscriptions, Professeurs). Livraison
-correspondant aux phases 1 a 3 du cahier des charges :
-
-1. Fondations (authentification JWT, 6 roles, audit).
-2. Referentiels scolaires (annees scolaires, niveaux, classes, groupes,
-   salles, matieres avec coefficients variables par classe).
-3. Etudiants, inscriptions, frais de scolarite, professeurs et
-   affectations.
-
-Les phases suivantes (presences + notifications WhatsApp via liens
-wa.me, evaluations/bulletins, emplois du temps par algorithme
-genetique, remuneration des professeurs) seront livrees separement.
+Backend Django REST Framework pour la gestion d'une ecole privee. Voir le
+`README.md` a la racine pour le detail des phases, `DEPLOIEMENT.md` pour la
+mise en production.
 
 ## Installation
 
@@ -43,6 +33,13 @@ python manage.py test apps.tests
 | `UTILISER_SQLITE` | 1 pour utiliser SQLite au lieu de MySQL (tests rapides) |
 | `BD_NOM`, `BD_UTILISATEUR`, `BD_MOT_DE_PASSE`, `BD_HOTE`, `BD_PORT` | Connexion MySQL/MariaDB |
 | `ORIGINES_CORS` | Origines autorisees pour le frontend (separees par des virgules) |
+| `HOTES_AUTORISES`, `FORCER_HTTPS` | Hotes autorises et durcissement HTTPS en production |
+| `FICHIER_SQLITE` | Chemin du fichier SQLite (avec `UTILISER_SQLITE=1`) |
+| `LOGO_ECOLE` | Logo imprime sur les documents PDF (facultatif) |
+| `WHATSAPP_*` | Envoi automatique WhatsApp (facultatif, voir `DEPLOIEMENT.md`) |
+
+La liste exhaustive et commentee est dans `.env.example`. Avec `DEBUG=0`, `CLE_SECRETE`
+(32 caracteres minimum) est obligatoire.
 
 ## Creer le premier utilisateur administrateur
 
@@ -58,7 +55,7 @@ Utilisateur.objects.create_user(
 "
 ```
 
-## Modules exposes (phases 1-3)
+## Modules exposes
 
 - `api/auth/` : connexion (JWT), rafraichissement de jeton, profil (`/moi/`).
 - `api/utilisateurs/` : gestion des comptes (6 roles).
@@ -77,25 +74,38 @@ Utilisateur.objects.create_user(
   pour la situation mensuelle d'un eleve (equivalent numerique de la
   fiche papier de suivi des mensualites).
 
+- `api/presences/` : seances, appel (present/absent/retard/justifie), historique, notifications WhatsApp, webhook.
+- `api/evaluations/` : evaluations, notes (import/export Excel), resultats, bulletins PDF, classements.
+- `api/emplois-du-temps/` : emplois, generation genetique, editeur de seances, verification des conflits, publication, PDF/Excel, planification, disponibilites.
+- `api/remuneration/` : tarifs, releves mensuels, paiements, fiches PDF, etat mensuel.
+- `api/tableau-de-bord/` : indicateurs par role ; `recherche/` : recherche globale.
+- `api/parametres/` (parametres de l'ecole) et `api/journal-audit/`.
+
+Toutes les listes acceptent `page`, `taille_page`, `tri`, `recherche`, des filtres par colonne et un export
+(`exporter/` : xlsx, csv, pdf ; selection ou resultats filtres). Les champs triables/filtrables sont
+deduits du serializer (jamais de champ sensible).
+
+## Commandes de gestion
+
+| Commande | Role |
+|---|---|
+| `charger_niveaux_classes [--annee ...]` | Cree Fondamental/College/Lycee et leurs classes (idempotent) |
+| `charger_demo --mot-de-passe ...` | Donnees d'exemple (refuse une base non vide) |
+| `traiter_notifications_whatsapp [--boucle]` | Envoie la file de notifications WhatsApp |
+
 ## Tests
 
-31 tests couvrant les regles metier principales (une seule annee active,
-capacite classe/salle, coefficients variables par classe, capacite des
-inscriptions, immuabilite des paiements, import/export Excel, permissions
-par role) :
+307 tests (calculs, presences, evaluations, algorithme genetique, remuneration, securite par role,
+listes avancees, tableau de bord, donnees de demonstration, bilinguisme francais/arabe) :
 
 ```bash
 export UTILISER_SQLITE=1
-python manage.py test apps.tests -v 2
+python manage.py test apps.tests
 ```
 
-## A configurer pour les phases suivantes
+## Notes de conception
 
-- **WhatsApp** : la notification des parents (phase 4) sera implementee
-  via des liens `wa.me` pre-remplis (clic manuel par le personnel), suite
-  a la decision explicite du client de ne pas utiliser l'API WhatsApp
-  Business. Aucune configuration externe n'est requise pour cette
-  approche.
-- **MySQL/MariaDB** : fournir les identifiants dans `.env` avant la mise
-  en production (le developpement/les tests peuvent utiliser SQLite via
-  `UTILISER_SQLITE=1`).
+- Les documents PDF utilisent des polices latines : le texte arabe n'y est pas imprime.
+- Les notifications WhatsApp fonctionnent par file d'attente (`EN_ATTENTE`, `ENVOYE`, `LIVRE`, `ECHEC`) ;
+  sans configuration `WHATSAPP_*`, un lien `wa.me` pre-rempli est propose (clic manuel du personnel).
+- MySQL/MariaDB : fournir les identifiants dans `.env` ; le developpement et les tests peuvent utiliser SQLite.

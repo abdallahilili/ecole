@@ -5,16 +5,23 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from reportlab.lib.units import cm
-from reportlab.platypus import Spacer, Table
+from reportlab.platypus import Spacer
 
+from apps.commun.excel import orienter_feuille
 from apps.commun.parametres import lire_parametre
-from apps.commun.pdf import (
+from apps.commun.traduction import traduire
+from apps.commun.pdf import (Tableau as Table, 
     STYLE_NORMAL, STYLE_TITRE, construire_pdf, entete_etablissement, p, style_tableau,
 )
 from .models import StatutPresence
 from .services import liste_appel
 
 LIGNES_MODELE_VIERGE = 40
+
+
+def _nom_etablissement():
+    from apps.commun.pdf import _parametre_localise
+    return _parametre_localise("nom_etablissement")
 
 # Disposition FIXE du modele d'import : l'importeur relit ces cellules pour
 # verifier que le fichier correspond bien au cours choisi.
@@ -28,7 +35,7 @@ def contexte_seance(seance):
     return {
         "annee": seance.annee_scolaire.libelle,
         "classe": seance.classe.nom,
-        "matiere": seance.matiere.nom,
+        "matiere": seance.matiere.nom_affiche,
         "professeur": seance.professeur.nom_complet if seance.professeur else "",
         "date": seance.date.strftime("%d/%m/%Y"),
         "horaire": f"{seance.heure_debut:%H:%M} - {seance.heure_fin:%H:%M}",
@@ -81,9 +88,10 @@ def pdf_liste(contexte):
 def xlsx_liste(contexte):
     classeur = openpyxl.Workbook()
     feuille = classeur.active
-    feuille.title = "Liste de presence"
-    feuille.append([lire_parametre("nom_etablissement")])
-    feuille.append(["LISTE DE PRESENCE"])
+    feuille.title = traduire("Liste de presence")
+    orienter_feuille(feuille)
+    feuille.append([_nom_etablissement()])
+    feuille.append([traduire("LISTE DE PRESENCE")])
     feuille["A1"].font = Font(bold=True, size=13)
     feuille["A2"].font = Font(bold=True, size=12)
     for etiquette, valeur in (
@@ -91,9 +99,9 @@ def xlsx_liste(contexte):
         ("Matiere", contexte["matiere"]), ("Professeur", contexte["professeur"]),
         ("Date", contexte["date"]), ("Horaire", contexte["horaire"]),
     ):
-        feuille.append([etiquette, valeur])
+        feuille.append([traduire(etiquette), valeur])
     feuille.append([])
-    entete = ["N°", "Matricule", "Nom complet", "Present", "Absent", "Retard", "Observations"]
+    entete = [traduire(h) for h in ["N°", "Matricule", "Nom complet", "Present", "Absent", "Retard", "Observations"]]
     feuille.append(entete)
     ligne_entete = feuille.max_row
     for index in range(1, len(entete) + 1):
@@ -115,18 +123,19 @@ def xlsx_modele_import(seance_ctx):
     """Modele Excel a remplir : cours en en-tete, une ligne par eleve de la classe."""
     classeur = openpyxl.Workbook()
     feuille = classeur.active
-    feuille.title = "Presences"
+    feuille.title = traduire("Presences")
+    orienter_feuille(feuille)
     meta = [
         ("Annee scolaire", seance_ctx["annee"]), ("Classe", seance_ctx["classe"]),
         ("Matiere (code)", seance_ctx["matiere_code"]), ("Date (AAAA-MM-JJ)", seance_ctx["date_iso"]),
         ("Heure debut (HH:MM)", seance_ctx["heure_debut"]), ("Heure fin (HH:MM)", seance_ctx["heure_fin"]),
     ]
     for index, (etiquette, valeur) in enumerate(meta, start=1):
-        feuille.cell(row=index, column=1, value=etiquette).font = Font(bold=True)
+        feuille.cell(row=index, column=1, value=traduire(etiquette)).font = Font(bold=True)
         feuille.cell(row=index, column=2, value=valeur)
-    feuille.cell(row=7, column=1, value="Statut : P = present, A = absent, R = retard. Ne pas modifier les lignes 1 a 6.")
+    feuille.cell(row=7, column=1, value=traduire("Statut : P = present, A = absent, R = retard. Ne pas modifier les lignes 1 a 6."))
     feuille.cell(row=7, column=1).font = Font(italic=True)
-    entete = ["N°", "Matricule", "Nom complet", "Statut (P/A/R)", "Observation"]
+    entete = [traduire(h) for h in ["N°", "Matricule", "Nom complet", "Statut (P/A/R)", "Observation"]]
     for index, titre in enumerate(entete, start=1):
         cellule = feuille.cell(row=LIGNE_ENTETE_IMPORT, column=index, value=titre)
         cellule.font = Font(bold=True)

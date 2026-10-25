@@ -5,7 +5,7 @@ from .models import GrilleFrais, PaiementScolarite, TypeFrais
 
 
 class GrilleFraisSerializer(serializers.ModelSerializer):
-    niveau_nom = serializers.CharField(source="niveau.nom", read_only=True)
+    niveau_nom = serializers.CharField(source="niveau.nom_affiche", read_only=True)
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)
 
     class Meta:

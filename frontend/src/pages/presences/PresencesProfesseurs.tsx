@@ -4,9 +4,10 @@ import { Badge } from "../../composants/Badge";
 import { CARTE, CHAMP } from "../../composants/styles";
 import { api } from "../../services/api";
 import { useOptions } from "../../hooks/useListe";
-import { formaterDate, formaterHeure } from "../../services/fichiers";
+import { formaterDate, formaterHeure, UNITE_HEURE } from "../../services/fichiers";
 import type { Professeur, Seance } from "../../types";
 
+import { tr, tx } from "../../i18n";
 interface Resume {
   seances: number;
   heures_effectuees: string;
@@ -14,12 +15,12 @@ interface Resume {
 }
 
 const STATUTS = [
-  { value: "PLANIFIE", label: "Planifie" },
-  { value: "EFFECTUE", label: "Effectue" },
-  { value: "RETARD", label: "Retard du professeur" },
-  { value: "ABSENT", label: "Professeur absent" },
-  { value: "ANNULE", label: "Cours annule" },
-  { value: "REMPLACE", label: "Remplace" },
+  { value: "PLANIFIE", label: tr("Planifie") },
+  { value: "EFFECTUE", label: tr("Effectue") },
+  { value: "RETARD", label: tr("Retard du professeur") },
+  { value: "ABSENT", label: tr("Professeur absent") },
+  { value: "ANNULE", label: tr("Cours annule") },
+  { value: "REMPLACE", label: tr("Remplace") },
 ];
 
 /** Presence des professeurs par seance : seules les seances effectuees
@@ -43,83 +44,83 @@ export function PagePresencesProfesseurs() {
       {resume && (
         <div className={`${CARTE} mb-4`}>
           <p className="text-sm text-texte">
-            <b>{resume.seances}</b> seance(s) - <b>{resume.heures_effectuees} h</b> effectuee(s) sur la selection.
+            {tx("{0} seance(s) - {1} effectuee(s) sur la selection.", <b>{resume.seances}</b>, <b>{resume.heures_effectuees} {UNITE_HEURE}</b>)}
           </p>
           {resume.par_professeur.length > 0 && (
             <p className="mt-1 text-xs text-texte-attenue">
-              {resume.par_professeur.map((p) => `${p.nom} : ${p.heures} h (${p.seances} seance(s))`).join(" - ")}
+              {resume.par_professeur.map((p) => tr("{0} : {1} h ({2} seance(s))", p.nom, p.heures, p.seances)).join(" - ")}
             </p>
           )}
         </div>
       )}
       <PageCrud<Seance>
-        titre="Presences des professeurs"
+        titre={tr("Presences des professeurs")}
         url="/presences/seances/"
         cleLigne={(s) => s.id}
         champRecherche={false}
         parametresFiltre={filtres}
         valeursParDefaut={{ statut_professeur: "PLANIFIE" }}
-        titreForm={(modif) => (modif ? "Presence du professeur" : "Nouvelle seance")}
+        titreForm={(modif) => (modif ? tr("Presence du professeur") : tr("Nouvelle seance"))}
         filtres={
           <div className="flex flex-wrap items-center gap-2">
             <select className={CHAMP} value={filtres.professeur ?? ""} onChange={(e) => maj("professeur", e.target.value)}>
-              <option value="">Tous les professeurs</option>
+              <option value="">{tr("Tous les professeurs")}</option>
               {professeurs.map((p) => <option key={p.id} value={p.id}>{p.nom_complet}</option>)}
             </select>
             <select className={CHAMP} value={filtres.statut_professeur ?? ""} onChange={(e) => maj("statut_professeur", e.target.value)}>
-              <option value="">Tous les statuts</option>
+              <option value="">{tr("Tous les statuts")}</option>
               {STATUTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <label className="flex items-center gap-1 text-sm text-texte-attenue">
-              Du <input type="date" className={CHAMP} value={filtres.du ?? ""} onChange={(e) => maj("du", e.target.value)} />
+              {tr("Du")} <input type="date" className={CHAMP} value={filtres.du ?? ""} onChange={(e) => maj("du", e.target.value)} />
             </label>
             <label className="flex items-center gap-1 text-sm text-texte-attenue">
               au <input type="date" className={CHAMP} value={filtres.au ?? ""} onChange={(e) => maj("au", e.target.value)} />
             </label>
-            <button className="text-sm text-entete hover:underline" onClick={() => setCle((c) => c + 1)}>Actualiser les totaux</button>
+            <button className="text-sm text-entete hover:underline" onClick={() => setCle((c) => c + 1)}>{tr("Actualiser les totaux")}</button>
           </div>
         }
         colonnes={[
-          { cle: "date", titre: "Date", rendu: (s) => formaterDate(s.date) },
-          { cle: "horaire", titre: "Horaire prevu", rendu: (s) => `${formaterHeure(s.heure_debut)} - ${formaterHeure(s.heure_fin)}` },
-          { cle: "classe_nom", titre: "Classe" },
-          { cle: "matiere_nom", titre: "Matiere" },
+          { cle: "date", titre: tr("Date"), rendu: (s) => formaterDate(s.date) },
+          { cle: "horaire", titre: tr("Horaire prevu"), rendu: (s) => `${formaterHeure(s.heure_debut)} - ${formaterHeure(s.heure_fin)}` },
+          { cle: "classe_nom", titre: tr("Classe") },
+          { cle: "matiere_nom", titre: tr("Matiere") },
           {
-            cle: "professeur_nom", titre: "Professeur",
+            cle: "professeur_nom", titre: tr("Professeur"),
             rendu: (s) => (
               <span>
                 {s.professeur_nom ?? "-"}
-                {s.remplacant_nom && <span className="block text-xs text-texte-attenue">remplace par {s.remplacant_nom}</span>}
+                {s.remplacant_nom && <span className="block text-xs text-texte-attenue">{tr("remplace par {0}", s.remplacant_nom)}</span>}
               </span>
             ),
           },
-          { cle: "statut_professeur", titre: "Statut", rendu: (s) => <Badge statut={s.statut_professeur} /> },
+          { cle: "statut_professeur", titre: tr("Statut"), rendu: (s) => <Badge statut={s.statut_professeur} /> },
           {
-            cle: "reel", titre: "Horaire reel",
+            cle: "reel", titre: tr("Horaire reel"),
             rendu: (s) => (s.heure_reelle_debut || s.heure_reelle_fin
               ? `${formaterHeure(s.heure_reelle_debut) || "?"} - ${formaterHeure(s.heure_reelle_fin) || "?"}` : "-"),
           },
-          { cle: "heures_effectuees", titre: "Heures", alignerDroite: true },
+          { cle: "heures_effectuees", titre: tr("Heures"), alignerDroite: true },
         ]}
         champs={[
           {
-            nom: "annee_scolaire", label: "Annee scolaire", type: "select", requis: true,
+            nom: "annee_scolaire", label: tr("Annee scolaire"), type: "select", requis: true,
             optionsUrl: "/referentiels/annees-scolaires/", optionLabel: (a) => a.libelle,
           },
           {
-            nom: "classe", label: "Classe", type: "select", requis: true,
-            optionsUrl: "/referentiels/classes/", optionLabel: (c) => `${c.nom} (${c.annee_scolaire_libelle})`,
+            nom: "classe", label: tr("Classe"), type: "select", requis: true,
+            optionsUrl: "/referentiels/classes/?annee_active=1", optionLabel: (c) => `${c.nom} (${c.annee_scolaire_libelle})`,
           },
-          { nom: "matiere", label: "Matiere", type: "select", requis: true, optionsUrl: "/referentiels/matieres/", optionLabel: (m) => m.nom },
-          { nom: "professeur", label: "Professeur prevu", type: "select", optionsUrl: "/professeurs/professeurs/", optionLabel: (p) => p.nom_complet },
-          { nom: "date", label: "Date", type: "date", requis: true },
-          { nom: "heure_debut", label: "Heure de debut prevue", type: "heure", requis: true },
-          { nom: "heure_fin", label: "Heure de fin prevue", type: "heure", requis: true },
-          { nom: "statut_professeur", label: "Statut du professeur", type: "select", optionsStatiques: STATUTS },
-          { nom: "professeur_remplacant", label: "Remplacant (si remplace)", type: "select", optionsUrl: "/professeurs/professeurs/", optionLabel: (p) => p.nom_complet },
-          { nom: "heure_reelle_debut", label: "Heure reelle de debut", type: "heure" },
-          { nom: "heure_reelle_fin", label: "Heure reelle de fin", type: "heure" },
-          { nom: "observations_professeur", label: "Observations", colonnePleine: true },
+          { nom: "matiere", label: tr("Matiere"), type: "select", requis: true, optionsUrl: "/referentiels/matieres/", optionLabel: (m) => m.nom_affiche ?? m.nom },
+          { nom: "professeur", label: tr("Professeur prevu"), type: "select", optionsUrl: "/professeurs/professeurs/", optionLabel: (p) => p.nom_complet },
+          { nom: "date", label: tr("Date"), type: "date", requis: true },
+          { nom: "heure_debut", label: tr("Heure de debut prevue"), type: "heure", requis: true },
+          { nom: "heure_fin", label: tr("Heure de fin prevue"), type: "heure", requis: true },
+          { nom: "statut_professeur", label: tr("Statut du professeur"), type: "select", optionsStatiques: STATUTS },
+          { nom: "professeur_remplacant", label: tr("Remplacant (si remplace)"), type: "select", optionsUrl: "/professeurs/professeurs/", optionLabel: (p) => p.nom_complet },
+          { nom: "heure_reelle_debut", label: tr("Heure reelle de debut"), type: "heure" },
+          { nom: "heure_reelle_fin", label: tr("Heure reelle de fin"), type: "heure" },
+          { nom: "observations_professeur", label: tr("Observations"), colonnePleine: true },
         ]}
       />
     </div>

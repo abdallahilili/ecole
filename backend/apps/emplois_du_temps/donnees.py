@@ -51,7 +51,7 @@ def charger_cadre(annee, configuration=None):
     for a in AffectationProfesseur.objects.filter(annee_scolaire=annee).select_related("professeur", "matiere", "classe", "groupe"):
         affectations.add((a.professeur_id, a.matiere_id, a.classe_id, a.groupe_id))
         noms[("prof", a.professeur_id)] = a.professeur.nom_complet
-        noms[("matiere", a.matiere_id)] = a.matiere.nom
+        noms[("matiere", a.matiere_id)] = a.matiere.nom_affiche
         noms[("classe", a.classe_id)] = a.classe.nom
         if a.groupe_id:
             noms[("groupe", a.groupe_id)] = a.groupe.nom
@@ -73,7 +73,7 @@ def completer_noms(cadre, seances):
     """Ajoute au cadre les noms utiles pour decrire des seances deja enregistrees."""
     for s in seances:
         cadre.noms.setdefault(("prof", s.professeur_id), s.professeur.nom_complet)
-        cadre.noms.setdefault(("matiere", s.matiere_id), s.matiere.nom)
+        cadre.noms.setdefault(("matiere", s.matiere_id), s.matiere.nom_affiche)
         cadre.noms.setdefault(("classe", s.classe_id), s.classe.nom)
         if s.groupe_id:
             cadre.noms.setdefault(("groupe", s.groupe_id), s.groupe.nom)
@@ -102,7 +102,7 @@ def construire_unites(annee, cadre, salles):
         .order_by("classe__nom", "matiere__nom", "id")
     for a in ordre:
         cle = (a.classe_id, a.groupe_id, a.matiere_id)
-        nom = f"{a.matiere.nom} - {a.classe.nom}" + (f" ({a.groupe.nom})" if a.groupe_id else "")
+        nom = f"{a.matiere.nom_affiche} - {a.classe.nom}" + (f" ({a.groupe.nom})" if a.groupe_id else "")
         if cle in vus:
             diagnostics.append(f"{nom} : plusieurs professeurs affectes, seul le premier est programme ({a.professeur.nom_complet} ignore).")
             continue

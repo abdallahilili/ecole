@@ -1,9 +1,17 @@
 from django.db import models
+from django.utils import timezone
 from apps.commun.exceptions import ErreurMetier
+from apps.commun.langue import est_arabe
+
+
+def nom_localise(objet):
+    """Nom a afficher : version arabe si l'interface est en arabe et qu'elle est renseignee, sinon le nom principal."""
+    return objet.nom_ar if est_arabe() and objet.nom_ar else objet.nom
 
 
 class AnneeScolaire(models.Model):
-    libelle = models.CharField(max_length=20, unique=True, db_column="libelle")  # ex: 2025-2026
+    # ex: 2025-2026 ; a l'archivage le libelle devient "2025-2026 (archivee #id)" : le nom redevient disponible.
+    libelle = models.CharField(max_length=60, unique=True, db_column="libelle")
     date_debut = models.DateField(db_column="date_debut")
     date_fin = models.DateField(db_column="date_fin")
     # Ecole secondaire : le 1er trimestre commence a date_debut, le 3e se termine a date_fin.
@@ -11,6 +19,9 @@ class AnneeScolaire(models.Model):
     debut_trimestre3 = models.DateField(null=True, blank=True, db_column="debut_trimestre3")
     debut_vacances = models.DateField(null=True, blank=True, db_column="debut_vacances")
     fin_vacances = models.DateField(null=True, blank=True, db_column="fin_vacances")
+    # Deuxieme petite vacance (fin mars) ; la premiere (debut_vacances) tombe en fin d'annee civile.
+    debut_vacances2 = models.DateField(null=True, blank=True, db_column="debut_vacances2")
+    fin_vacances2 = models.DateField(null=True, blank=True, db_column="fin_vacances2")
     # Un examen par trimestre.
     debut_examen1 = models.DateField(null=True, blank=True, db_column="debut_examen1")
     fin_examen1 = models.DateField(null=True, blank=True, db_column="fin_examen1")
@@ -20,6 +31,9 @@ class AnneeScolaire(models.Model):
     fin_examen3 = models.DateField(null=True, blank=True, db_column="fin_examen3")
     active = models.BooleanField(default=False, db_column="active")
     cloturee = models.BooleanField(default=False, db_column="cloturee")
+    # La "suppression" d'une annee l'archive : classes, inscriptions, notes... restent rattachees a la ligne.
+    archivee = models.BooleanField(default=False, db_column="archivee")
+    date_archivage = models.DateTimeField(null=True, blank=True, db_column="date_archivage")
 
     class Meta:
         db_table = "annee_scolaire"
@@ -30,6 +44,14 @@ class AnneeScolaire(models.Model):
     def __str__(self):
         return self.libelle
 
+    def archiver(self):
+        """Retire l'annee des listes et libere son libelle, sans toucher aux donnees qui s'y rattachent."""
+        self.libelle = f"{self.libelle} (archivee #{self.pk})"
+        self.archivee = True
+        self.active = False
+        self.date_archivage = timezone.now()
+        self.save()
+
     def save(self, *args, **kwargs):
         if self.active:
             # Une seule annee active a la fois (sauf desactivation explicite).
@@ -39,6 +61,7 @@ class AnneeScolaire(models.Model):
 
 class Niveau(models.Model):
     nom = models.CharField(max_length=100, db_column="nom")
+    nom_ar = models.CharField(max_length=100, blank=True, default="", db_column="nom_ar")
     code = models.CharField(max_length=20, unique=True, db_column="code")
     ordre = models.IntegerField(default=0, db_column="ordre")
 
@@ -50,6 +73,10 @@ class Niveau(models.Model):
 
     def __str__(self):
         return self.nom
+
+    @property
+    def nom_affiche(self):
+        return nom_localise(self)
 
 
 class Salle(models.Model):
@@ -127,6 +154,7 @@ class Groupe(models.Model):
 
 class Matiere(models.Model):
     nom = models.CharField(max_length=100, db_column="nom")
+    nom_ar = models.CharField(max_length=100, blank=True, default="", db_column="nom_ar")
     code = models.CharField(max_length=20, unique=True, db_column="code")
     description = models.CharField(max_length=255, blank=True, default="", db_column="description")
 
@@ -138,6 +166,10 @@ class Matiere(models.Model):
 
     def __str__(self):
         return self.nom
+
+    @property
+    def nom_affiche(self):
+        return nom_localise(self)
 
 
 class AffectationMatiereClasse(models.Model):

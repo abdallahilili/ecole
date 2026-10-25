@@ -13,11 +13,23 @@ from .models import (
     NotificationWhatsApp, PresenceEtudiant, StatutNotification, StatutPresence,
 )
 
-MESSAGE_ABSENCE = (
-    "Bonjour, nous vous informons que votre enfant {nom_complet}, inscrit en classe de {classe}, "
-    "a été absent au cours de {matiere} le {date}, de {heure_debut} à {heure_fin}. "
-    "Merci de prendre contact avec l'administration si nécessaire. {etablissement}."
-)
+MESSAGES_ABSENCE = {
+    "fr": (
+        "Bonjour, nous vous informons que votre enfant {nom_complet}, inscrit en classe de {classe}, "
+        "a été absent au cours de {matiere} le {date}, de {heure_debut} à {heure_fin}. "
+        "Merci de prendre contact avec l'administration si nécessaire. {etablissement}."
+    ),
+    "ar": (
+        "مرحبًا، نُعلمكم بأن ابنكم {nom_complet}، المسجّل في القسم {classe}، قد تغيّب عن حصة {matiere} "
+        "يوم {date}، من {heure_debut} إلى {heure_fin}. يرجى الاتصال بالإدارة عند الحاجة. {etablissement}."
+    ),
+}
+MESSAGE_ABSENCE = MESSAGES_ABSENCE["fr"]      # conserve pour compatibilite
+
+
+def langue_message():
+    """Langue du message envoye aux parents (parametre de l'etablissement) : "fr" ou "ar"."""
+    return "ar" if str(lire_parametre("langue_whatsapp")).strip().lower() == "ar" else "fr"
 
 
 # ---------------------------------------------------------------- liste d'appel
@@ -151,21 +163,24 @@ def destinataire(etudiant):
     return None, "Parent / tuteur"
 
 
-def parametres_message(presence):
+def parametres_message(presence, langue=None):
+    langue = langue or langue_message()
     seance = presence.seance
+    matiere = seance.matiere
     return {
         "nom_complet": presence.etudiant.nom_complet,
         "classe": seance.classe.nom,
-        "matiere": seance.matiere.nom,
+        "matiere": matiere.nom_ar if langue == "ar" and matiere.nom_ar else matiere.nom,
         "date": seance.date.strftime("%d/%m/%Y"),
         "heure_debut": seance.heure_debut.strftime("%H:%M"),
         "heure_fin": seance.heure_fin.strftime("%H:%M"),
-        "etablissement": lire_parametre("nom_etablissement"),
+        "etablissement": (lire_parametre("nom_etablissement_ar") if langue == "ar" else "") or lire_parametre("nom_etablissement"),
     }
 
 
 def texte_message(presence):
-    return MESSAGE_ABSENCE.format(**parametres_message(presence))
+    langue = langue_message()
+    return MESSAGES_ABSENCE[langue].format(**parametres_message(presence, langue))
 
 
 def creer_notification(presence, manuelle=False):

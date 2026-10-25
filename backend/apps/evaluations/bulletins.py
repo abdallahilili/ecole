@@ -6,9 +6,9 @@ from datetime import date
 from decimal import Decimal
 
 from reportlab.lib.units import cm
-from reportlab.platypus import PageBreak, Spacer, Table
+from reportlab.platypus import PageBreak, Spacer
 
-from apps.commun.pdf import (
+from apps.commun.pdf import (Tableau as Table, 
     STYLE_CENTRE, STYLE_NORMAL, STYLE_PETIT, STYLE_TITRE, construire_pdf, entete_etablissement, gras, multiligne, p,
     style_tableau,
 )

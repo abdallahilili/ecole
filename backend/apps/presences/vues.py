@@ -2,7 +2,8 @@ import json
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import viewsets
@@ -21,6 +22,7 @@ from apps.commun.parametres import lire_bool
 from apps.commun.pdf import reponse_pdf
 from apps.commun.permissions import PermissionParRole
 from apps.commun.vues_base import ViewSetGestion, ViewSetLecture
+from apps.etudiants.models import Inscription
 from . import exports, imports, services, whatsapp
 from .models import (
     NotificationWhatsApp, PresenceEtudiant, Seance, StatutNotification, StatutPresence,
@@ -75,10 +77,14 @@ class SeanceViewSet(ViewSetGestion):
         qs = self._filtrer(Seance.objects.select_related(
             "annee_scolaire", "classe", "matiere", "professeur", "professeur_remplacant"
         ))
+        effectif = Inscription.objects.filter(
+            classe_id=OuterRef("classe_id"), annee_scolaire_id=OuterRef("annee_scolaire_id"), statut="ACTIVE",
+        ).order_by().values("classe_id").annotate(n=Count("pk")).values("n")
         return qs.annotate(
             nb_presents=Count("presences", filter=Q(presences__statut=StatutPresence.PRESENT)),
             nb_absents=Count("presences", filter=Q(presences__statut=StatutPresence.ABSENT)),
             nb_retards=Count("presences", filter=Q(presences__statut=StatutPresence.RETARD)),
+            effectif_classe=Coalesce(Subquery(effectif, output_field=IntegerField()), 0),
         ).order_by("-date", "-heure_debut", "-id")  # l'annotation supprime l'ordre par defaut du modele
 
     @action(detail=False, methods=["get"])
@@ -301,12 +307,14 @@ class NotificationViewSet(ViewSetLecture):
     @action(detail=False, methods=["get"])
     def configuration(self, request):
         """Etat de la configuration (jamais les secrets)."""
+        langue = services.langue_message()
         return Response({
-            "api_configuree": whatsapp.api_configuree(),
+            "api_configuree": whatsapp.api_configuree(langue),
             "whatsapp_actif": lire_bool("whatsapp_actif"),
             "retard_est_absence": lire_bool("retard_est_absence"),
-            "modele_message": services.MESSAGE_ABSENCE,
-            "nom_modele_api": settings.WHATSAPP_MODELE,
+            "langue_message": langue,
+            "modele_message": services.MESSAGES_ABSENCE[langue],
+            "nom_modele_api": whatsapp.modele_et_langue(langue)[0],
             "max_tentatives": settings.WHATSAPP_MAX_TENTATIVES,
         })
 
@@ -321,7 +329,7 @@ class NotificationViewSet(ViewSetLecture):
         if notification.statut not in (StatutNotification.ECHEC, StatutNotification.EN_ATTENTE):
             raise ErreurMetier("Seules les notifications en echec ou en attente peuvent etre relancees.")
         self._remettre_en_file(notification)
-        if whatsapp.api_configuree():
+        if whatsapp.api_configuree(services.langue_message()):
             whatsapp.envoyer_notification(notification)
             notification.refresh_from_db()
         return Response(self.get_serializer(notification).data)

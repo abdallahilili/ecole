@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from "react";
 import type { ReactNode } from "react";
 
+import { tr } from "../i18n";
 interface OptionsConfirmation {
   titre: string;
   message: string;
@@ -39,13 +40,13 @@ export function FournisseurConfirmation({ children }: { children: ReactNode }) {
                 onClick={() => repondre(false)}
                 className="rounded border border-bordure px-3 py-1.5 text-sm hover:bg-fond"
               >
-                Annuler
+                {tr("Annuler")}
               </button>
               <button
                 onClick={() => repondre(true)}
                 className="rounded bg-entete px-3 py-1.5 text-sm text-white hover:bg-entete-fonce"
               >
-                Confirmer
+                {tr("Confirmer")}
               </button>
             </div>
           </div>

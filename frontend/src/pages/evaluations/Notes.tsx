@@ -15,22 +15,23 @@ import type {
   AffectationMatiereClasse, AnneeScolaire, Classe, EleveNote, Evaluation, StatutNote, TypeEvaluation,
 } from "../../types";
 
+import { tr, tx } from "../../i18n";
 interface Saisie { statut: StatutNote; valeur: string }
 interface LigneNote extends LigneApercu { statut: StatutNote | null; valeur: string | null; ancienne: string | null }
 
 const STATUTS: { valeur: StatutNote; libelle: string }[] = [
-  { valeur: "SAISIE", libelle: "Note" },
-  { valeur: "ABSENT", libelle: "Absent" },
-  { valeur: "ABSENT_JUSTIFIE", libelle: "Absent justifie" },
-  { valeur: "NON_APPLICABLE", libelle: "Non applicable" },
+  { valeur: "SAISIE", libelle: tr("Note") },
+  { valeur: "ABSENT", libelle: tr("Absent") },
+  { valeur: "ABSENT_JUSTIFIE", libelle: tr("Absent justifie") },
+  { valeur: "NON_APPLICABLE", libelle: tr("Non applicable") },
 ];
 
 // Modeles inspires du bulletin papier : interrogations x3, composition 1 x1, composition 2 x2.
 const MODELES: { libelle: string; type: TypeEvaluation; poids: string }[] = [
-  { libelle: "Interrogations", type: "INTERROGATION", poids: "3" },
-  { libelle: "Composition 1", type: "EXAMEN", poids: "1" },
-  { libelle: "Composition 2", type: "EXAMEN", poids: "2" },
-  { libelle: "Devoir", type: "DEVOIR", poids: "1" },
+  { libelle: tr("Interrogations"), type: "INTERROGATION", poids: "3" },
+  { libelle: tr("Composition 1"), type: "EXAMEN", poids: "1" },
+  { libelle: tr("Composition 2"), type: "EXAMEN", poids: "2" },
+  { libelle: tr("Devoir"), type: "DEVOIR", poids: "1" },
 ];
 
 function nombre(texte: string): number {
@@ -156,11 +157,11 @@ export function PageNotes() {
   async function enregistrer() {
     if (!evaluation) return;
     if (compteurs.erreurs > 0) {
-      notifierErreur(`${compteurs.erreurs} note(s) invalide(s) (0 a ${bareme}) : corrigez avant d'enregistrer.`);
+      notifierErreur(tr("{0} note(s) invalide(s) (0 a {1}) : corrigez avant d'enregistrer.", compteurs.erreurs, bareme));
       return;
     }
     if (verrouille && !motif.trim()) {
-      notifierErreur("Resultats valides : saisissez le motif de la correction.");
+      notifierErreur(tr("Resultats valides : saisissez le motif de la correction."));
       return;
     }
     setEnCours(true);
@@ -175,7 +176,7 @@ export function PageNotes() {
       const { data } = await api.post(`/evaluations/evaluations/${evaluation.id}/notes/`, { notes, motif });
       charger(data);
       chargerEvaluations();
-      notifierSucces(`Notes enregistrees (${data.bilan.creees} nouvelle(s), ${data.bilan.modifiees} modifiee(s)).`);
+      notifierSucces(tr("Notes enregistrees ({0} nouvelle(s), {1} modifiee(s)).", data.bilan.creees, data.bilan.modifiees));
     } catch (err) {
       notifierErreur(messageErreur(err));
     } finally {
@@ -199,7 +200,7 @@ export function PageNotes() {
         ? await api.patch(`/evaluations/evaluations/${edition.id}/`, corps)
         : await api.post("/evaluations/evaluations/", { ...corps, annee_scolaire: annee, classe, matiere, trimestre });
       setFormOuvert(false);
-      notifierSucces(edition ? "Evaluation modifiee." : "Evaluation creee.");
+      notifierSucces(edition ? tr("Evaluation modifiee.") : tr("Evaluation creee."));
       await chargerEvaluations(data.id);
       if (edition) chargerGrille();
     } catch (err) {
@@ -210,12 +211,12 @@ export function PageNotes() {
   async function supprimerEvaluation() {
     if (!evaluation) return;
     const ok = await demanderConfirmation({
-      titre: "Supprimer l'evaluation", message: `Supprimer « ${evaluation.libelle} » ? Possible uniquement si aucune note n'est saisie.`,
+      titre: tr("Supprimer l'evaluation"), message: tr("Supprimer « {0} » ? Possible uniquement si aucune note n'est saisie.", evaluation.libelle),
     });
     if (!ok) return;
     try {
       await api.delete(`/evaluations/evaluations/${evaluation.id}/`);
-      notifierSucces("Evaluation supprimee.");
+      notifierSucces(tr("Evaluation supprimee."));
       setIdEvaluation("");
       chargerEvaluations();
     } catch (err) {
@@ -236,39 +237,39 @@ export function PageNotes() {
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-semibold text-texte">Saisie des notes</h1>
+      <h1 className="mb-4 text-lg font-semibold text-texte">{tr("Saisie des notes")}</h1>
 
       <div className={`${CARTE} mb-4 grid grid-cols-2 gap-3 md:grid-cols-5`}>
         <div>
-          <label className={ETIQUETTE}>Annee scolaire</label>
+          <label className={ETIQUETTE}>{tr("Annee scolaire")}</label>
           <select className={`${CHAMP} w-full`} value={annee} onChange={(e) => { setAnnee(e.target.value); setClasse(""); setMatiere(""); }}>
             {annees.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Trimestre</label>
+          <label className={ETIQUETTE}>{tr("Trimestre")}</label>
           <select className={`${CHAMP} w-full`} value={trimestre} onChange={(e) => setTrimestre(e.target.value)}>
-            <option value="1">1er trimestre</option>
-            <option value="2">2e trimestre</option>
-            <option value="3">3e trimestre</option>
+            <option value="1">{tr("1er trimestre")}</option>
+            <option value="2">{tr("2e trimestre")}</option>
+            <option value="3">{tr("3e trimestre")}</option>
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Classe</label>
+          <label className={ETIQUETTE}>{tr("Classe")}</label>
           <select className={`${CHAMP} w-full`} value={classe} onChange={(e) => { setClasse(e.target.value); setMatiere(""); }}>
             <option value="">--</option>
             {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Matiere</label>
+          <label className={ETIQUETTE}>{tr("Matiere")}</label>
           <select className={`${CHAMP} w-full`} value={matiere} onChange={(e) => setMatiere(e.target.value)} disabled={!classe}>
             <option value="">--</option>
             {affectations.map((a) => <option key={a.matiere} value={a.matiere}>{a.matiere_nom}</option>)}
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Evaluation</label>
+          <label className={ETIQUETTE}>{tr("Evaluation")}</label>
           <select className={`${CHAMP} w-full`} value={idEvaluation} onChange={(e) => setIdEvaluation(e.target.value)} disabled={!selectionComplete}>
             <option value="">--</option>
             {evaluations.map((ev) => (
@@ -278,15 +279,15 @@ export function PageNotes() {
         </div>
         <div className="col-span-full flex flex-wrap gap-2">
           <button type="button" className={BOUTON} disabled={!selectionComplete} onClick={() => ouvrirForm(null)}>
-            <Plus size={15} /> Nouvelle evaluation
+            <Plus size={15} /> {tr("Nouvelle evaluation")}
           </button>
           {evaluation && (
             <>
               <button type="button" className={BOUTON} onClick={() => ouvrirForm(evaluation)} disabled={lectureSeule}>
-                <Pencil size={15} /> Modifier
+                <Pencil size={15} /> {tr("Modifier")}
               </button>
               <button type="button" className={BOUTON} onClick={supprimerEvaluation} disabled={lectureSeule}>
-                <Trash2 size={15} /> Supprimer
+                <Trash2 size={15} /> {tr("Supprimer")}
               </button>
             </>
           )}
@@ -300,41 +301,41 @@ export function PageNotes() {
               <p className="font-medium text-texte">
                 {evaluation.matiere_nom} - {evaluation.libelle} - {evaluation.classe_nom} (T{evaluation.trimestre})
               </p>
-              <p className="text-sm text-texte-attenue">Bareme /{Number(evaluation.bareme)} - poids {Number(evaluation.poids)}</p>
+              <p className="text-sm text-texte-attenue">{tr("Bareme /{0} - poids {1}", Number(evaluation.bareme), Number(evaluation.poids))}</p>
             </div>
             <div className="flex gap-2">
-              <button className={BOUTON} onClick={() => setImportOuvert(true)} disabled={lectureSeule}><Upload size={15} /> Importer Excel</button>
-              <button className={BOUTON} onClick={exporter}><FileSpreadsheet size={15} /> Exporter</button>
+              <button className={BOUTON} onClick={() => setImportOuvert(true)} disabled={lectureSeule}><Upload size={15} /> {tr("Importer Excel")}</button>
+              <button className={BOUTON} onClick={exporter}><FileSpreadsheet size={15} /> {tr("Exporter")}</button>
             </div>
           </div>
 
           {verrouille && (
             <div className="mb-3 rounded border border-accent-orange bg-amber-50 px-3 py-2 text-sm text-amber-800">
               {peutCorriger
-                ? "Resultats valides : toute correction exige un motif et est tracee dans le journal d'audit."
-                : "Resultats valides : seule la direction peut corriger une note."}
+                ? tr("Resultats valides : toute correction exige un motif et est tracee dans le journal d'audit.")
+                : tr("Resultats valides : seule la direction peut corriger une note.")}
               {peutCorriger && (
-                <input className={`${CHAMP} mt-2 w-full`} placeholder="Motif de la correction" value={motif} onChange={(e) => setMotif(e.target.value)} />
+                <input className={`${CHAMP} mt-2 w-full`} placeholder={tr("Motif de la correction")} value={motif} onChange={(e) => setMotif(e.target.value)} />
               )}
             </div>
           )}
 
           <div className="mb-3 flex flex-wrap gap-4 text-sm">
-            <span className="text-accent-vert">Notes saisies : {compteurs.saisies}</span>
-            <span className={compteurs.manquantes ? "text-amber-700" : "text-texte-attenue"}>Notes manquantes : {compteurs.manquantes}</span>
-            {compteurs.erreurs > 0 && <span className="text-accent-rouge">Invalides : {compteurs.erreurs}</span>}
-            <span className="text-xs text-texte-attenue">Entree / fleches haut-bas pour passer a l&apos;eleve suivant ; virgule ou point decimal.</span>
+            <span className="text-accent-vert">{tr("Notes saisies : {0}", compteurs.saisies)}</span>
+            <span className={compteurs.manquantes ? "text-amber-700" : "text-texte-attenue"}>{tr("Notes manquantes : {0}", compteurs.manquantes)}</span>
+            {compteurs.erreurs > 0 && <span className="text-accent-rouge">{tr("Invalides : {0}", compteurs.erreurs)}</span>}
+            <span className="text-xs text-texte-attenue">{tr("Entree / fleches haut-bas pour passer a l'eleve suivant ; virgule ou point decimal.")}</span>
           </div>
 
           <div className="overflow-x-auto rounded border border-bordure">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-fond-barre text-left text-texte-attenue">
-                  <th className="px-3 py-2">N°</th>
-                  <th className="px-3 py-2">Matricule</th>
-                  <th className="px-3 py-2">Nom complet</th>
-                  <th className="px-3 py-2">Note /{Number(evaluation.bareme)}</th>
-                  <th className="px-3 py-2">Statut</th>
+                <tr className="bg-fond-barre text-start text-texte-attenue">
+                  <th className="px-3 py-2">{tr("N°")}</th>
+                  <th className="px-3 py-2">{tr("Matricule")}</th>
+                  <th className="px-3 py-2">{tr("Nom complet")}</th>
+                  <th className="px-3 py-2">{tr("Note /{0}", Number(evaluation.bareme))}</th>
+                  <th className="px-3 py-2">{tr("Statut")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,7 +368,7 @@ export function PageNotes() {
                                 onChange={(ev) => changer(e.etudiant, { statut: ev.target.value as StatutNote })}>
                           {STATUTS.map((s) => <option key={s.valeur} value={s.valeur}>{s.libelle}</option>)}
                         </select>
-                        {manquante && <span className="ml-2 text-xs text-amber-700">manquante</span>}
+                        {manquante && <span className="ms-2 text-xs text-amber-700">{tr("manquante")}</span>}
                       </td>
                     </tr>
                   );
@@ -378,17 +379,17 @@ export function PageNotes() {
 
           <div className="mt-3 flex justify-end">
             <button className={BOUTON_PRIMAIRE} onClick={enregistrer} disabled={enCours || !modifie || lectureSeule}>
-              <Save size={15} /> Enregistrer les notes
+              <Save size={15} /> {tr("Enregistrer les notes")}
             </button>
           </div>
         </div>
       )}
 
-      <Modale titre={edition ? "Modifier l'evaluation" : "Nouvelle evaluation"} ouverte={formOuvert} onFermer={() => setFormOuvert(false)}>
+      <Modale titre={edition ? tr("Modifier l'evaluation") : tr("Nouvelle evaluation")} ouverte={formOuvert} onFermer={() => setFormOuvert(false)}>
         <form onSubmit={soumettreForm} className="grid grid-cols-2 gap-3">
           {!edition && (
             <div className="col-span-2 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-texte-attenue">Modeles :</span>
+              <span className="text-xs text-texte-attenue">{tr("Modeles :")}</span>
               {MODELES.map((m) => (
                 <button key={m.libelle} type="button" className="rounded border border-bordure px-2 py-0.5 text-xs hover:bg-fond"
                         onClick={() => setForm((f) => ({ ...f, libelle: m.libelle, type: m.type, poids: m.poids }))}>
@@ -398,57 +399,57 @@ export function PageNotes() {
             </div>
           )}
           <div className="col-span-2">
-            <label className={ETIQUETTE}>Libelle *</label>
+            <label className={ETIQUETTE}>{tr("Libelle *")}</label>
             <input className={`${CHAMP} w-full`} required value={form.libelle} onChange={(e) => setForm({ ...form, libelle: e.target.value })} />
           </div>
           <div>
-            <label className={ETIQUETTE}>Type</label>
+            <label className={ETIQUETTE}>{tr("Type")}</label>
             <select className={`${CHAMP} w-full`} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as TypeEvaluation })}>
-              <option value="DEVOIR">Devoir</option>
-              <option value="INTERROGATION">Interrogation</option>
-              <option value="EXAMEN">Examen / composition</option>
-              <option value="AUTRE">Autre</option>
+              <option value="DEVOIR">{tr("Devoir")}</option>
+              <option value="INTERROGATION">{tr("Interrogation")}</option>
+              <option value="EXAMEN">{tr("Examen / composition")}</option>
+              <option value="AUTRE">{tr("Autre")}</option>
             </select>
           </div>
           <div>
-            <label className={ETIQUETTE}>Date</label>
+            <label className={ETIQUETTE}>{tr("Date")}</label>
             <input type="date" className={`${CHAMP} w-full`} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </div>
           <div>
-            <label className={ETIQUETTE}>Bareme *</label>
+            <label className={ETIQUETTE}>{tr("Bareme *")}</label>
             <input className={`${CHAMP} w-full`} required inputMode="decimal" value={form.bareme} onChange={(e) => setForm({ ...form, bareme: e.target.value })} />
           </div>
           <div>
-            <label className={ETIQUETTE}>Poids dans la moyenne *</label>
+            <label className={ETIQUETTE}>{tr("Poids dans la moyenne *")}</label>
             <input className={`${CHAMP} w-full`} required inputMode="decimal" value={form.poids} onChange={(e) => setForm({ ...form, poids: e.target.value })} />
           </div>
           <div className="col-span-2 mt-2 flex justify-end gap-2">
-            <button type="button" className={BOUTON} onClick={() => setFormOuvert(false)}>Annuler</button>
-            <button type="submit" className={BOUTON_PRIMAIRE}>Enregistrer</button>
+            <button type="button" className={BOUTON} onClick={() => setFormOuvert(false)}>{tr("Annuler")}</button>
+            <button type="submit" className={BOUTON_PRIMAIRE}>{tr("Enregistrer")}</button>
           </div>
         </form>
       </Modale>
 
       {evaluation && (
         <ImportExcel<LigneNote>
-          titre="Importer les notes depuis Excel"
+          titre={tr("Importer les notes depuis Excel")}
           ouverte={importOuvert}
           onFermer={() => setImportOuvert(false)}
           consignes={
-            <ol className="list-decimal space-y-1 pl-5">
-              <li>Telechargez le modele (eleves de la classe, notes deja saisies incluses).</li>
-              <li>Saisissez la note (virgule ou point), ou <b>A</b> (absent), <b>AJ</b> (absent justifie), <b>NA</b> (non applicable). Case vide = pas de note.</li>
-              <li>Importez, controlez l&apos;apercu, puis confirmez : rien n&apos;est enregistre avant.</li>
+            <ol className="list-decimal space-y-1 ps-5">
+              <li>{tr("Telechargez le modele (eleves de la classe, notes deja saisies incluses).")}</li>
+              <li>{tx("Saisissez la note (virgule ou point), ou {0} (absent), {1} (absent justifie), {2} (non applicable). Case vide = pas de note.", <b>A</b>, <b>AJ</b>, <b>NA</b>)}</li>
+              <li>{tr("Importez, controlez l'apercu, puis confirmez : rien n'est enregistre avant.")}</li>
             </ol>
           }
           urlModele={`/evaluations/evaluations/${evaluation.id}/modele-import/`}
           nomModele="modele_notes.xlsx"
           urlImport={`/evaluations/evaluations/${evaluation.id}/importer/`}
-          titreValeur="Note"
+          titreValeur={tr("Note")}
           motifRequis={verrouille}
           rendreValeur={(l) => (
             <>
-              {l.ancienne && <span className="mr-1 text-texte-attenue line-through">{l.ancienne}</span>}
+              {l.ancienne && <span className="me-1 text-texte-attenue line-through">{l.ancienne}</span>}
               {l.valeur ?? l.statut ?? ""}
             </>
           )}

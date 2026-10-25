@@ -111,6 +111,10 @@ class Seance(models.Model):
         db_table = "seance"
         unique_together = [("classe", "matiere", "date", "heure_debut")]
         ordering = ["-date", "-heure_debut", "-id"]
+        indexes = [
+            models.Index(fields=["date"], name="seance_date_idx"),
+            models.Index(fields=["professeur", "date"], name="seance_prof_date_idx"),
+        ]
         verbose_name = "Seance"
         verbose_name_plural = "Seances"
 
@@ -193,6 +197,7 @@ class NotificationWhatsApp(models.Model):
     class Meta:
         db_table = "notification_whatsapp"
         ordering = ["-cree_le", "-id"]
+        indexes = [models.Index(fields=["statut", "prochaine_tentative"], name="notif_file_idx")]   # file d'envoi
         verbose_name = "Notification WhatsApp"
         verbose_name_plural = "Notifications WhatsApp"
 

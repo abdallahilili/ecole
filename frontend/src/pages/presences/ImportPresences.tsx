@@ -3,6 +3,7 @@ import type { LigneApercu } from "../../composants/ImportExcel";
 import { Badge } from "../../composants/Badge";
 import type { StatutPresence } from "../../types";
 
+import { tr, tx } from "../../i18n";
 interface LignePresence extends LigneApercu {
   statut: StatutPresence | null;
   ancien_statut: StatutPresence | null;
@@ -19,24 +20,24 @@ interface Props {
 export function ImportPresences({ cours, ouverte, onFermer, onImporte }: Props) {
   return (
     <ImportExcel<LignePresence>
-      titre="Importer les presences depuis Excel"
+      titre={tr("Importer les presences depuis Excel")}
       ouverte={ouverte}
       onFermer={onFermer}
       consignes={
-        <ol className="list-decimal space-y-1 pl-5">
-          <li>Telechargez le modele du cours (il contient les eleves de la classe).</li>
-          <li>Renseignez le statut : <b>P</b> (present), <b>A</b> (absent) ou <b>R</b> (retard).</li>
-          <li>Importez le fichier, controlez l&apos;apercu, puis confirmez. Rien n&apos;est enregistre avant la confirmation.</li>
+        <ol className="list-decimal space-y-1 ps-5">
+          <li>{tr("Telechargez le modele du cours (il contient les eleves de la classe).")}</li>
+          <li>{tx("Renseignez le statut : {0} (present), {1} (absent) ou {2} (retard).", <b>P</b>, <b>A</b>, <b>R</b>)}</li>
+          <li>{tr("Importez le fichier, controlez l'apercu, puis confirmez. Rien n'est enregistre avant la confirmation.")}</li>
         </ol>
       }
       urlModele="/presences/seances/modele-import/"
       nomModele="modele_presences.xlsx"
       urlImport="/presences/seances/importer/"
       champs={cours}
-      titreValeur="Statut"
+      titreValeur={tr("Statut")}
       rendreValeur={(l) => (
         <>
-          {l.ancien_statut && <span className="mr-1 text-texte-attenue line-through">{l.ancien_statut}</span>}
+          {l.ancien_statut && <span className="me-1 text-texte-attenue line-through">{l.ancien_statut}</span>}
           {l.statut && <Badge statut={l.statut} />}
         </>
       )}

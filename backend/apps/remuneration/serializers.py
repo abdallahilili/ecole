@@ -10,7 +10,7 @@ from .models import (
 
 class TarifProfesseurMatiereSerializer(serializers.ModelSerializer):
     professeur_nom = serializers.CharField(source="professeur.nom_complet", read_only=True)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
 
     class Meta:
         model = TarifProfesseurMatiere
@@ -24,7 +24,7 @@ class TarifProfesseurMatiereSerializer(serializers.ModelSerializer):
 
 class LigneReleveSerializer(serializers.ModelSerializer):
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
 
     class Meta:
         model = LigneReleve

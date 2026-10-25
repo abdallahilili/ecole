@@ -35,7 +35,7 @@ def _appreciations(classe, periode):
 
 def _decrire_matieres(affectations, par_matiere, nb_notes):
     return [{
-        "id": a.matiere_id, "nom": a.matiere.nom, "code": a.matiere.code, "coefficient": a.coefficient,
+        "id": a.matiere_id, "nom": a.matiere.nom_affiche, "code": a.matiere.code, "coefficient": a.coefficient,
         "evaluee": bool(par_matiere.get(a.matiere_id)),
         "evaluations": [
             {"id": e.id, "libelle": e.libelle, "type": e.type, "bareme": e.bareme, "poids": e.poids, "date": e.date,
@@ -61,7 +61,7 @@ def resultats_trimestre(classe, trimestre, regles=None):
         notes[(note.etudiant_id, note.evaluation_id)] = note
         nb_notes[note.evaluation_id] += 1
     appreciations = _appreciations(classe, trimestre)
-    matiere_nom = {a.matiere_id: a.matiere.nom for a in affectations}
+    matiere_nom = {a.matiere_id: a.matiere.nom_affiche for a in affectations}
 
     lignes = []
     for inscription in eleves_classe(classe.id, classe.annee_scolaire_id):

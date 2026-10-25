@@ -10,10 +10,11 @@ from django.http import HttpResponse
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from reportlab.lib.units import cm
-from reportlab.platypus import Spacer, Table
+from reportlab.platypus import Spacer
 
-from .excel import TYPE_XLSX, neutraliser_formule
-from .pdf import STYLE_PETIT, STYLE_TITRE, construire_pdf, entete_etablissement, p, style_tableau
+from .excel import TYPE_XLSX, neutraliser_formule, orienter_feuille
+from .traduction import traduire
+from .pdf import Tableau as Table, STYLE_PETIT, STYLE_TITRE, construire_pdf, entete_etablissement, p, style_tableau
 
 LIMITE_LIGNES = 20000
 LIMITE_LIGNES_PDF = 2000
@@ -26,7 +27,7 @@ def formater(valeur):
     if valeur is None:
         return ""
     if isinstance(valeur, bool):
-        return "Oui" if valeur else "Non"
+        return traduire("Oui" if valeur else "Non")
     if isinstance(valeur, (list, tuple)):
         return ", ".join(formater(v) for v in valeur)
     if isinstance(valeur, dict):
@@ -39,9 +40,32 @@ def formater(valeur):
     return texte
 
 
+# Codes renvoyes par l'API -> libelle (traduit ensuite selon la langue) : un export doit etre lisible sans connaitre les codes.
+LIBELLES_CODES = {
+    "BROUILLON": "Brouillon", "VALIDE": "Valide", "ANNULE": "Annule", "ANNULEE": "Annulee", "EN_ATTENTE": "En attente",
+    "EN_COURS": "En cours", "TERMINEE": "Terminee", "LIVREE": "Livree", "OUVERTE": "Ouverte", "FERMEE": "Fermee",
+    "ACTIVE": "Active", "TRANSFEREE": "Transferee", "ABANDON": "Abandon", "DIPLOME": "Diplome", "ACTIF": "Actif",
+    "INACTIF": "Inactif", "PRESENT": "Present", "ABSENT": "Absent", "RETARD": "Retard", "PLANIFIE": "Planifie",
+    "EFFECTUE": "Effectue", "REMPLACE": "Remplace", "ENVOYE": "Envoye", "LIVRE": "Livre", "ECHEC": "Echec",
+    "NON_PAYE": "Non paye", "PARTIEL": "Partiel", "PAYE": "Paye", "PUBLIE": "Publie", "ARCHIVE": "Archive",
+    "ADMINISTRATEUR": "Administrateur", "DIRECTEUR": "Directeur", "COMPTABLE": "Comptable", "PROFESSEUR": "Professeur",
+    "RESPONSABLE_SCOLARITE": "Responsable de la scolarite", "RESPONSABLE_PEDAGOGIQUE": "Responsable pedagogique",
+    "HORAIRE": "Au nombre d'heures", "FIXE": "Salaire fixe",
+}
+LIBELLES_SEXE = {"M": "Masculin", "F": "Feminin"}
+
+
+def _libelle(cle, valeur):
+    if valeur in LIBELLES_CODES:
+        return traduire(LIBELLES_CODES[valeur])
+    if cle == "sexe" and valeur in LIBELLES_SEXE:
+        return traduire(LIBELLES_SEXE[valeur])
+    return valeur
+
+
 def lignes_de(donnees, colonnes):
     """donnees : liste de dicts (serializer) ; colonnes : [(cle, titre)] -> liste de listes de texte."""
-    return [[formater(ligne.get(cle)) for cle, _ in colonnes] for ligne in donnees]
+    return [[_libelle(cle, formater(ligne.get(cle))) for cle, _ in colonnes] for ligne in donnees]
 
 
 def reponse_csv(titres, lignes, nom):
@@ -58,7 +82,8 @@ def reponse_csv(titres, lignes, nom):
 def reponse_xlsx_liste(titre, titres, lignes, nom):
     classeur = openpyxl.Workbook()
     feuille = classeur.active
-    feuille.title = (titre or "Export")[:31]
+    feuille.title = (titre or traduire("Export"))[:31]
+    orienter_feuille(feuille)
     feuille.append(titres)
     for index in range(1, len(titres) + 1):
         cellule = feuille.cell(row=1, column=index)
@@ -82,9 +107,9 @@ def reponse_pdf_liste(titre, titres, lignes, nom):
     tableau = Table(donnees, repeatRows=1, colWidths=[largeur_utile / nb] * nb)
     tableau.setStyle(style_tableau())
     elements = entete_etablissement() + [p(titre or "Liste", STYLE_TITRE), tableau, Spacer(1, 6)]
-    pied = f"{len(lignes)} ligne(s)"
+    pied = traduire(f"{len(lignes)} ligne(s)")
     if len(lignes) > LIMITE_LIGNES_PDF:
-        pied += f" - PDF limite aux {LIMITE_LIGNES_PDF} premieres : utilisez l'export Excel ou CSV pour la totalite"
+        pied += " " + traduire(f"- PDF limite aux {LIMITE_LIGNES_PDF} premieres : utilisez l'export Excel ou CSV pour la totalite")
     elements.append(p(pied, STYLE_PETIT))
     reponse = HttpResponse(construire_pdf(elements, paysage=True, titre=titre or "Liste"), content_type="application/pdf")
     reponse["Content-Disposition"] = f'attachment; filename="{nom}.pdf"'

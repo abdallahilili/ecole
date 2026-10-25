@@ -12,7 +12,8 @@ from openpyxl.utils import get_column_letter
 
 from apps.commun.audit import enregistrer_audit
 from apps.commun.exceptions import ErreurMetier
-from apps.commun.excel import lire_classeur, texte
+from apps.commun.excel import lire_classeur, orienter_feuille, texte
+from apps.commun.traduction import traduire
 from apps.etudiants.models import Etudiant
 from apps.etudiants.services import eleves_classe
 from . import services
@@ -43,21 +44,22 @@ def xlsx_modele_notes(evaluation, lignes):
     """Modele pre-rempli : eleves de la classe, notes deja saisies incluses."""
     classeur = openpyxl.Workbook()
     feuille = classeur.active
-    feuille.title = "Notes"
+    feuille.title = traduire("Notes")
+    orienter_feuille(feuille)
     meta = [
         ("Annee scolaire", evaluation.annee_scolaire.libelle), ("Classe", evaluation.classe.nom),
         ("Matiere (code)", evaluation.matiere.code), ("Trimestre", evaluation.trimestre),
         ("Evaluation", evaluation.libelle), ("Bareme", float(evaluation.bareme)),
     ]
     for index, (etiquette, valeur) in enumerate(meta, start=1):
-        feuille.cell(row=index, column=1, value=etiquette).font = Font(bold=True)
+        feuille.cell(row=index, column=1, value=traduire(etiquette)).font = Font(bold=True)
         feuille.cell(row=index, column=2, value=valeur)
-    feuille.cell(row=7, column=1, value=(
+    feuille.cell(row=7, column=1, value=traduire(
         "Note : nombre (virgule ou point). A = absent, AJ = absent justifie, NA = non applicable. "
         "Laisser vide = pas de note. Ne pas modifier les lignes 1 a 6."
     )).font = Font(italic=True)
     for index, titre in enumerate(["N°", "Matricule", "Nom complet", "Note / statut"], start=1):
-        cellule = feuille.cell(row=LIGNE_ENTETE, column=index, value=titre)
+        cellule = feuille.cell(row=LIGNE_ENTETE, column=index, value=traduire(titre))
         cellule.font = Font(bold=True)
         cellule.fill = ENTETE_FOND
     for decalage, ligne in enumerate(lignes):
@@ -211,15 +213,17 @@ def xlsx_classement(donnees):
     """Classement d'une classe (trimestre ou annee) : rang, eleve, moyennes, moyenne generale."""
     classeur = openpyxl.Workbook()
     feuille = classeur.active
-    feuille.title = "Classement"
+    feuille.title = traduire("Classement")
+    orienter_feuille(feuille)
     annuel = donnees["periode"] == 0
-    titre = "Annuel" if annuel else f"Trimestre {donnees['periode']}"
-    feuille.append([f"Classement - {donnees['classe_nom']} - {donnees['annee_libelle']} - {titre}"])
+    titre = traduire("Annuel") if annuel else traduire(f"Trimestre {donnees['periode']}")
+    feuille.append([traduire(f"Classement - {donnees['classe_nom']} - {donnees['annee_libelle']} - {titre}")])
     feuille["A1"].font = Font(bold=True, size=12)
-    feuille.append(["Resultats " + ("valides" if donnees["validee"] else "PROVISOIRES (non valides)")])
+    feuille.append([traduire("Resultats valides" if donnees["validee"] else "Resultats PROVISOIRES (non valides)")])
     feuille.append([])
     entete = ["Rang", "Matricule", "Nom complet"] + [m["nom"] for m in donnees["matieres"]]
     entete += (["T1", "T2", "T3"] if annuel else []) + ["Total", "Moyenne generale", "Decision", "Remarque"]
+    entete = [traduire(h) for h in entete]
     feuille.append(entete)
     ligne_entete = feuille.max_row
     for index in range(1, len(entete) + 1):
@@ -237,7 +241,7 @@ def xlsx_classement(donnees):
         moyenne = eleve["moyenne_generale"]
         ligne.append(float(moyenne.quantize(Decimal("0.01"))) if moyenne is not None else None)
         ligne.append(eleve["decision"])
-        ligne.append("Incomplet : notes manquantes" if eleve["incomplet"] else "")
+        ligne.append(traduire("Incomplet : notes manquantes") if eleve["incomplet"] else "")
         feuille.append(ligne)
     _largeurs(feuille, [7, 14, 32] + [14] * (len(entete) - 3))
     return classeur

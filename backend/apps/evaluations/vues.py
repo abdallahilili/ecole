@@ -1,4 +1,5 @@
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, IntegerField, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -12,10 +13,11 @@ from apps.commun.exceptions import ErreurMetier
 from apps.commun.pdf import reponse_pdf
 from apps.commun.permissions import PermissionParRole
 from apps.commun.vues_base import ViewSetGestion
+from apps.etudiants.models import Inscription
 from apps.professeurs.models import AffectationProfesseur
 from apps.referentiels.models import Classe
 from . import bulletins, excel, resultats as moteur, services
-from .models import Evaluation
+from .models import Evaluation, ValidationResultats
 from .serializers import EvaluationSerializer
 
 ROLES_SAISIE = [Role.ADMINISTRATEUR, Role.DIRECTEUR, Role.RESPONSABLE_PEDAGOGIQUE, Role.PROFESSEUR]
@@ -34,7 +36,15 @@ class EvaluationViewSet(ViewSetGestion):
     roles_par_action = {"default": ROLES_SAISIE}
 
     def get_queryset(self):
-        qs = Evaluation.objects.select_related("annee_scolaire", "classe", "matiere").annotate(nb_notes=Count("notes"))
+        effectif = Inscription.objects.filter(
+            classe_id=OuterRef("classe_id"), annee_scolaire_id=OuterRef("annee_scolaire_id"), statut="ACTIVE",
+        ).order_by().values("classe_id").annotate(n=Count("pk")).values("n")
+        verrou = ValidationResultats.objects.filter(classe_id=OuterRef("classe_id"), trimestre=OuterRef("trimestre"))
+        qs = Evaluation.objects.select_related("annee_scolaire", "classe", "matiere").annotate(
+            nb_notes=Count("notes"),
+            effectif_classe=Coalesce(Subquery(effectif, output_field=IntegerField()), 0),
+            verrouillee=Exists(verrou),
+        )
         utilisateur = self.request.user
         if utilisateur.role == Role.PROFESSEUR:
             # Un professeur ne voit/saisit que les evaluations de ses affectations.

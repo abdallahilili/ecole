@@ -302,7 +302,7 @@ def heures_par_matiere_et_classe(professeur, du, au):
     deja compte dans un releve (verification avant de generer/valider)."""
     lignes = defaultdict(lambda: {"heures": ZERO, "seances": 0, "comptabilisees": ZERO})
     for s in seances_du_professeur(professeur, du, au).select_related("ligne_releve"):
-        cle = (s.matiere_id, s.matiere.nom, s.classe_id, s.classe.nom)
+        cle = (s.matiere_id, s.matiere.nom_affiche, s.classe_id, s.classe.nom)
         ligne = lignes[cle]
         ligne["heures"] += s.heures_effectuees
         ligne["seances"] += 1

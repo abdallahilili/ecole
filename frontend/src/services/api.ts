@@ -1,4 +1,5 @@
 import axios from "axios";
+import { langue } from "../i18n";
 import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 
 const URL_BASE = (import.meta.env.VITE_URL_API as string) || "http://localhost:8000/api";
@@ -16,6 +17,9 @@ export function obtenirJetonAcces() {
 export const api = axios.create({ baseURL: URL_BASE });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Le serveur repond (messages, PDF, Excel...) dans la langue de l'interface.
+  config.headers = config.headers ?? {};
+  config.headers["Accept-Language"] = langue;
   if (jetonAcces) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${jetonAcces}`;
@@ -32,8 +36,10 @@ async function rafraichirJeton(): Promise<string | null> {
     const { data } = await axios.post(`${URL_BASE}/auth/rafraichir/`, { refresh });
     definirJetonAcces(data.access);
     return data.access;
-  } catch {
-    localStorage.removeItem("jeton_rafraichissement");
+  } catch (erreur) {
+    // Une panne passagere (reseau, 5xx, 429) conserve le jeton de rafraichissement : seul un refus explicite le supprime.
+    const statut = axios.isAxiosError(erreur) ? erreur.response?.status : undefined;
+    if (statut === 400 || statut === 401 || statut === 403) localStorage.removeItem("jeton_rafraichissement");
     definirJetonAcces(null);
     return null;
   }

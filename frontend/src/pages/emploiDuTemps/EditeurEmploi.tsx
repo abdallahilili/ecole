@@ -17,12 +17,14 @@ import type {
 } from "../../types";
 import { RapportGenerationPanneau } from "./RapportGeneration";
 
+import { NOM_JOUR } from "../../services/jours";
+import { tr } from "../../i18n";
 type Mode = "classe" | "professeur" | "salle" | "matiere";
 const MODES: { valeur: Mode; libelle: string }[] = [
-  { valeur: "classe", libelle: "Classe" },
-  { valeur: "professeur", libelle: "Professeur" },
-  { valeur: "salle", libelle: "Salle" },
-  { valeur: "matiere", libelle: "Matiere" },
+  { valeur: "classe", libelle: tr("Classe") },
+  { valeur: "professeur", libelle: tr("Professeur") },
+  { valeur: "salle", libelle: tr("Salle") },
+  { valeur: "matiere", libelle: tr("Matiere") },
 ];
 const COULEURS = ["#e8f1f4", "#fdf1dc", "#e6f4ea", "#f3e8f7", "#fde8e8", "#e8ecfb", "#f1f4e0", "#e3f4f1"];
 
@@ -43,7 +45,7 @@ interface Formulaire {
 
 function lignesCarte(s: SeanceGrille, mode: Mode): string[] {
   const classe = s.classe_nom + (s.groupe_nom ? ` (${s.groupe_nom})` : "");
-  const salle = s.salle_nom ? `Salle ${s.salle_nom}` : "Sans salle";
+  const salle = s.salle_nom ? tr("Salle {0}", s.salle_nom) : tr("Sans salle");
   if (mode === "classe") return [s.professeur_nom, salle];
   if (mode === "professeur") return [classe, salle];
   if (mode === "salle") return [classe, s.professeur_nom];
@@ -73,7 +75,15 @@ export function PageEditeurEmploi() {
   const glisse = useRef<SeanceGrille | null>(null);
 
   const modifiable = !!vue?.emploi.modifiable && peutGerer;
-  const annee = vue?.emploi.annee_scolaire;
+  // L'annee vient de l'emploi lui-meme (et non de la grille) : la grille ne peut se charger qu'une fois une classe
+  // choisie, et la liste des classes depend de l'annee.
+  const [anneeEmploi, setAnneeEmploi] = useState<number | undefined>(undefined);
+  const annee = anneeEmploi ?? vue?.emploi.annee_scolaire;
+  useEffect(() => {
+    if (estProfesseur) return;
+    api.get(`/emplois-du-temps/emplois/${id}/`).then(({ data }) => setAnneeEmploi(data.annee_scolaire)).catch((err) => notifierErreur(messageErreur(err)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, estProfesseur]);
   // Le professeur voit sa propre grille (filtre impose par le serveur) : aucune liste a charger.
   const classes = useOptions<Classe>(`/referentiels/classes/?annee_scolaire=${annee}`, !!annee && !estProfesseur);
   const professeurs = useOptions<Professeur>("/professeurs/professeurs/", peutGerer);
@@ -85,7 +95,7 @@ export function PageEditeurEmploi() {
     if (mode === "classe") return classes.map((c) => ({ id: c.id, nom: c.nom }));
     if (mode === "professeur") return professeurs.map((p) => ({ id: p.id, nom: p.nom_complet }));
     if (mode === "salle") return salles.map((s) => ({ id: s.id, nom: s.nom }));
-    return matieres.map((m) => ({ id: m.id, nom: m.nom }));
+    return matieres.map((m) => ({ id: m.id, nom: m.nom_affiche ?? m.nom }));
   }, [mode, classes, professeurs, salles, matieres]);
 
   useEffect(() => {
@@ -151,10 +161,10 @@ export function PageEditeurEmploi() {
   }
 
   const deplacer = (s: SeanceGrille, jour: number, debut: string, fin: string) =>
-    appliquer(() => api.patch(`/emplois-du-temps/seances/${s.id}/`, { jour, heure_debut: debut, heure_fin: fin }), "Seance deplacee.");
+    appliquer(() => api.patch(`/emplois-du-temps/seances/${s.id}/`, { jour, heure_debut: debut, heure_fin: fin }), tr("Seance deplacee."));
 
   const copier = (s: SeanceGrille, jour: number, debut: string, fin?: string) =>
-    appliquer(() => api.post(`/emplois-du-temps/seances/${s.id}/copier/`, { jour, heure_debut: debut, ...(fin ? { heure_fin: fin } : {}) }), "Seance copiee.");
+    appliquer(() => api.post(`/emplois-du-temps/seances/${s.id}/copier/`, { jour, heure_debut: debut, ...(fin ? { heure_fin: fin } : {}) }), tr("Seance copiee."));
 
   function changerDuree(s: SeanceGrille, delta: number) {
     if (!vue) return;
@@ -203,7 +213,7 @@ export function PageEditeurEmploi() {
       if (formulaire.id) await api.patch(`/emplois-du-temps/seances/${formulaire.id}/`, corps);
       else await api.post("/emplois-du-temps/seances/", corps);
       setFormulaire(null);
-      notifierSucces("Seance enregistree.");
+      notifierSucces(tr("Seance enregistree."));
       await charger();
     } catch (err: any) {
       if (err?.response?.data?.conflits) setRefus(err.response.data.conflits);
@@ -213,17 +223,17 @@ export function PageEditeurEmploi() {
 
   async function supprimerSeance() {
     if (!formulaire?.id) return;
-    const ok = await demanderConfirmation({ titre: "Supprimer la seance", message: "Retirer ce cours de l'emploi du temps ?" });
+    const ok = await demanderConfirmation({ titre: tr("Supprimer la seance"), message: tr("Retirer ce cours de l'emploi du temps ?") });
     if (!ok) return;
-    await appliquer(() => api.delete(`/emplois-du-temps/seances/${formulaire.id}/`), "Seance supprimee.");
+    await appliquer(() => api.delete(`/emplois-du-temps/seances/${formulaire.id}/`), tr("Seance supprimee."));
     setFormulaire(null);
   }
 
   async function publier() {
     if (!vue) return;
     const ok = await demanderConfirmation({
-      titre: "Publier l'emploi du temps",
-      message: "Il deviendra l'emploi du temps officiel (l'actuel sera archive) et ne sera plus modifiable. Les conflits sont verifies une derniere fois.",
+      titre: tr("Publier l'emploi du temps"),
+      message: tr("Il deviendra l'emploi du temps officiel (l'actuel sera archive) et ne sera plus modifiable. Les conflits sont verifies une derniere fois."),
     });
     if (!ok) return;
     await appliquer(async () => {
@@ -236,7 +246,7 @@ export function PageEditeurEmploi() {
     if (!vue) return;
     try {
       const { data } = await api.post(`/emplois-du-temps/emplois/${vue.emploi.id}/dupliquer/`, {});
-      notifierSucces("Brouillon cree.");
+      notifierSucces(tr("Brouillon cree."));
       navigate(`/emplois-du-temps/${data.id}`);
     } catch (err) {
       notifierErreur(messageErreur(err));
@@ -256,7 +266,7 @@ export function PageEditeurEmploi() {
     }
   }
 
-  if (!vue) return <p className="text-sm text-texte-attenue">Chargement de l&apos;emploi du temps...</p>;
+  if (!vue) return <p className="text-sm text-texte-attenue">{tr("Chargement de l'emploi du temps...")}</p>;
 
   const creneauxUtiles = vue.cadre.creneaux.filter((c) => !c.pause);
   const f = formulaire;
@@ -265,43 +275,43 @@ export function PageEditeurEmploi() {
   return (
     <div>
       <div className="mb-3">
-        <Link to="/emplois-du-temps" className="text-sm text-entete hover:underline">&larr; Retour aux emplois du temps</Link>
+        <Link to="/emplois-du-temps" className="text-sm text-entete hover:underline">{tr("← Retour aux emplois du temps")}</Link>
       </div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold text-texte">{vue.emploi.nom}</h1>
           <p className="text-sm text-texte-attenue">
-            {vue.emploi.statut === "BROUILLON" ? "Brouillon - modifiable" : vue.emploi.statut === "PUBLIE" ? "Publie - lecture seule" : "Archive - lecture seule"}
-            {vue.emploi.origine === "GENETIQUE" && " - genere automatiquement"}
+            {vue.emploi.statut === "BROUILLON" ? tr("Brouillon - modifiable") : vue.emploi.statut === "PUBLIE" ? tr("Publie - lecture seule") : tr("Archive - lecture seule")}
+            {vue.emploi.origine === "GENETIQUE" && tr(" - genere automatiquement")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {modifiable && (
             <>
-              <button className={BOUTON} onClick={() => ouvrirFormulaire()}><Plus size={15} /> Nouvelle seance</button>
-              <button className={BOUTON_PRIMAIRE} onClick={publier}><Send size={15} /> Publier</button>
+              <button className={BOUTON} onClick={() => ouvrirFormulaire()}><Plus size={15} /> {tr("Nouvelle seance")}</button>
+              <button className={BOUTON_PRIMAIRE} onClick={publier}><Send size={15} /> {tr("Publier")}</button>
             </>
           )}
           {peutGerer && !vue.emploi.modifiable && (
-            <button className={BOUTON} onClick={dupliquer}><Copy size={15} /> Dupliquer pour modifier</button>
+            <button className={BOUTON} onClick={dupliquer}><Copy size={15} /> {tr("Dupliquer pour modifier")}</button>
           )}
-          <button className={BOUTON} onClick={() => sortie("imprimer")}><Printer size={15} /> Imprimer</button>
-          <button className={BOUTON} onClick={() => sortie("pdf")}><FileText size={15} /> PDF</button>
-          <button className={BOUTON} onClick={() => sortie("excel")}><FileSpreadsheet size={15} /> Excel</button>
-          {!estProfesseur && <button className={BOUTON} onClick={() => sortie("pdf", true)}><FileText size={15} /> PDF de toutes les {mode === "classe" ? "classes" : mode === "professeur" ? "professeurs" : mode === "salle" ? "salles" : "matieres"}</button>}
+          <button className={BOUTON} onClick={() => sortie("imprimer")}><Printer size={15} /> {tr("Imprimer")}</button>
+          <button className={BOUTON} onClick={() => sortie("pdf")}><FileText size={15} /> {tr("PDF")}</button>
+          <button className={BOUTON} onClick={() => sortie("excel")}><FileSpreadsheet size={15} /> {tr("Excel")}</button>
+          {!estProfesseur && <button className={BOUTON} onClick={() => sortie("pdf", true)}><FileText size={15} /> {mode === "classe" ? tr("PDF de toutes les classes") : mode === "professeur" ? tr("PDF de tous les professeurs") : mode === "salle" ? tr("PDF de toutes les salles") : tr("PDF de toutes les matieres")}</button>}
         </div>
       </div>
 
       {!estProfesseur && (
         <div className={`${CARTE} mb-3 flex flex-wrap items-center gap-2`}>
-          <span className="text-sm text-texte-attenue">Afficher par</span>
+          <span className="text-sm text-texte-attenue">{tr("Afficher par")}</span>
           <select className={CHAMP} value={mode} onChange={(e) => { setMode(e.target.value as Mode); setCible(""); }}>
             {MODES.map((m) => <option key={m.valeur} value={m.valeur}>{m.libelle}</option>)}
           </select>
           <select className={CHAMP} value={cible} onChange={(e) => setCible(e.target.value)}>
             {options.map((o) => <option key={o.id} value={o.id}>{o.nom}</option>)}
           </select>
-          {modifiable && <span className="text-xs text-texte-attenue">Glissez une seance vers un creneau pour la deplacer (Alt ou Ctrl enfonce : copier). Clic : modifier.</span>}
+          {modifiable && <span className="text-xs text-texte-attenue">{tr("Glissez une seance vers un creneau pour la deplacer (Alt ou Ctrl enfonce : copier). Clic : modifier.")}</span>}
         </div>
       )}
 
@@ -310,8 +320,8 @@ export function PageEditeurEmploi() {
           <table className="w-full table-fixed border-collapse text-xs">
             <thead>
               <tr className="bg-fond-barre text-texte-attenue">
-                <th className="w-24 border border-bordure px-2 py-1.5 text-left">Horaire</th>
-                {vue.cadre.jours.map((j) => <th key={j.id} className="border border-bordure px-2 py-1.5">{j.nom}</th>)}
+                <th className="w-24 border border-bordure px-2 py-1.5 text-start">{tr("Horaire")}</th>
+                {vue.cadre.jours.map((j) => <th key={j.id} className="border border-bordure px-2 py-1.5">{NOM_JOUR[j.id] ?? j.nom}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -320,7 +330,7 @@ export function PageEditeurEmploi() {
                   return (
                     <tr key={c.index}>
                       <td className="border border-bordure bg-fond-barre px-2 py-1.5 text-texte-attenue">{c.debut}-{c.fin}</td>
-                      <td colSpan={vue.cadre.jours.length} className="border border-bordure bg-fond-barre px-2 py-1.5 text-center text-texte-attenue">Pause</td>
+                      <td colSpan={vue.cadre.jours.length} className="border border-bordure bg-fond-barre px-2 py-1.5 text-center text-texte-attenue">{tr("Pause")}</td>
                     </tr>
                   );
                 }
@@ -359,9 +369,9 @@ export function PageEditeurEmploi() {
                                 {lignesCarte(s, mode).map((l) => <div key={l} className="truncate text-texte-attenue">{l}</div>)}
                                 {modifiable && (
                                   <div className="mt-0.5 flex gap-1">
-                                    <button title="Allonger d'un creneau" className="rounded bg-white/70 px-1 hover:bg-white"
+                                    <button title={tr("Allonger d'un creneau")} className="rounded bg-white/70 px-1 hover:bg-white"
                                             onClick={(e) => { e.stopPropagation(); changerDuree(s, 1); }}><Plus size={11} /></button>
-                                    <button title="Raccourcir d'un creneau" className="rounded bg-white/70 px-1 hover:bg-white"
+                                    <button title={tr("Raccourcir d'un creneau")} className="rounded bg-white/70 px-1 hover:bg-white"
                                             onClick={(e) => { e.stopPropagation(); changerDuree(s, -1); }}><Minus size={11} /></button>
                                   </div>
                                 )}
@@ -381,20 +391,20 @@ export function PageEditeurEmploi() {
         <aside className="space-y-3">
           {refus.length > 0 && (
             <div className="rounded border border-accent-rouge bg-red-50 p-3 text-sm text-accent-rouge">
-              <p className="mb-1 font-semibold">Modification refusee</p>
-              <ul className="list-disc space-y-1 pl-4">{refus.map((c) => <li key={c.message}>{c.message}</li>)}</ul>
+              <p className="mb-1 font-semibold">{tr("Modification refusee")}</p>
+              <ul className="list-disc space-y-1 ps-4">{refus.map((c) => <li key={c.message}>{c.message}</li>)}</ul>
             </div>
           )}
           {peutGerer && (
             <div className={CARTE}>
               <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-texte">
                 {conflits.length === 0 ? <CheckCircle2 size={16} className="text-accent-vert" /> : <AlertTriangle size={16} className="text-accent-rouge" />}
-                {conflits.length === 0 ? "Aucun conflit" : `${conflits.length} conflit(s)`}
+                {conflits.length === 0 ? tr("Aucun conflit") : tr("{0} conflit(s)", conflits.length)}
               </p>
               {conflits.length === 0 ? (
-                <p className="text-xs text-texte-attenue">Toutes les contraintes obligatoires sont respectees (la publication verifie aussi qu&apos;une salle est attribuee).</p>
+                <p className="text-xs text-texte-attenue">{tr("Toutes les contraintes obligatoires sont respectees (la publication verifie aussi qu'une salle est attribuee).")}</p>
               ) : (
-                <ul className="max-h-80 list-disc space-y-1 overflow-y-auto pl-4 text-xs text-accent-rouge">
+                <ul className="max-h-80 list-disc space-y-1 overflow-y-auto ps-4 text-xs text-accent-rouge">
                   {conflits.map((c, i) => <li key={`${c.message}${i}`}>{c.message}</li>)}
                 </ul>
               )}
@@ -402,66 +412,66 @@ export function PageEditeurEmploi() {
           )}
           {peutGerer && vue.emploi.rapport.unites !== undefined && (
             <details className={CARTE}>
-              <summary className="cursor-pointer text-sm font-semibold text-texte">Rapport de generation</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-texte">{tr("Rapport de generation")}</summary>
               <div className="mt-2"><RapportGenerationPanneau rapport={vue.emploi.rapport} /></div>
             </details>
           )}
         </aside>
       </div>
 
-      <Modale titre={f?.id ? "Modifier la seance" : "Nouvelle seance"} ouverte={!!f} onFermer={() => setFormulaire(null)} largeur="max-w-2xl">
+      <Modale titre={f?.id ? tr("Modifier la seance") : tr("Nouvelle seance")} ouverte={!!f} onFermer={() => setFormulaire(null)} largeur="max-w-2xl">
         {f && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={ETIQUETTE}>Classe *</label>
+                <label className={ETIQUETTE}>{tr("Classe *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.classe} onChange={(e) => maj({ classe: e.target.value, groupe: "" })}>
                   <option value="">--</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Groupe (optionnel)</label>
+                <label className={ETIQUETTE}>{tr("Groupe (optionnel)")}</label>
                 <select className={`${CHAMP} w-full`} value={f.groupe} onChange={(e) => maj({ groupe: e.target.value })} disabled={!f.classe}>
-                  <option value="">Classe entiere</option>
+                  <option value="">{tr("Classe entiere")}</option>
                   {groupes.map((g) => <option key={g.id} value={g.id}>{g.nom}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Matiere *</label>
+                <label className={ETIQUETTE}>{tr("Matiere *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.matiere} onChange={(e) => maj({ matiere: e.target.value })}>
                   <option value="">--</option>
-                  {matieres.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}
+                  {matieres.map((m) => <option key={m.id} value={m.id}>{m.nom_affiche ?? m.nom}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Professeur *</label>
+                <label className={ETIQUETTE}>{tr("Professeur *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.professeur} onChange={(e) => maj({ professeur: e.target.value })}>
                   <option value="">--</option>
                   {professeurs.map((p) => <option key={p.id} value={p.id}>{p.nom_complet}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Salle</label>
+                <label className={ETIQUETTE}>{tr("Salle")}</label>
                 <select className={`${CHAMP} w-full`} value={f.salle} onChange={(e) => maj({ salle: e.target.value })}>
-                  <option value="">-- Aucune --</option>
-                  {salles.map((s) => <option key={s.id} value={s.id}>{s.nom} ({s.capacite} places)</option>)}
+                  <option value="">{tr("-- Aucune --")}</option>
+                  {salles.map((s) => <option key={s.id} value={s.id}>{tr("{0} ({1} places)", s.nom, s.capacite)}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Jour *</label>
+                <label className={ETIQUETTE}>{tr("Jour *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.jour} onChange={(e) => maj({ jour: e.target.value })}>
-                  {vue.cadre.jours.map((j) => <option key={j.id} value={j.id}>{j.nom}</option>)}
+                  {vue.cadre.jours.map((j) => <option key={j.id} value={j.id}>{NOM_JOUR[j.id] ?? j.nom}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Debut *</label>
+                <label className={ETIQUETTE}>{tr("Debut *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.heure_debut} onChange={(e) => maj({ heure_debut: e.target.value })}>
                   {creneauxUtiles.map((c) => <option key={c.index} value={c.debut}>{c.debut}</option>)}
                 </select>
               </div>
               <div>
-                <label className={ETIQUETTE}>Fin *</label>
+                <label className={ETIQUETTE}>{tr("Fin *")}</label>
                 <select className={`${CHAMP} w-full`} value={f.heure_fin} onChange={(e) => maj({ heure_fin: e.target.value })}>
                   {creneauxUtiles.map((c) => <option key={c.index} value={c.fin}>{c.fin}</option>)}
                 </select>
@@ -469,16 +479,16 @@ export function PageEditeurEmploi() {
             </div>
 
             {refus.length > 0 && (
-              <ul className="list-disc space-y-1 rounded border border-accent-rouge bg-red-50 py-2 pl-7 pr-3 text-sm text-accent-rouge">
+              <ul className="list-disc space-y-1 rounded border border-accent-rouge bg-red-50 py-2 ps-7 pe-3 text-sm text-accent-rouge">
                 {refus.map((c) => <li key={c.message}>{c.message}</li>)}
               </ul>
             )}
 
             {f.id && vue.seances.find((s) => s.id === f.id) && (
               <div className="flex flex-wrap items-end gap-2 rounded border border-bordure bg-fond-barre p-2">
-                <span className="text-sm text-texte-attenue">Copier vers</span>
+                <span className="text-sm text-texte-attenue">{tr("Copier vers")}</span>
                 <select className={CHAMP} value={copie.jour} onChange={(e) => setCopie({ ...copie, jour: e.target.value })}>
-                  {vue.cadre.jours.map((j) => <option key={j.id} value={j.id}>{j.nom}</option>)}
+                  {vue.cadre.jours.map((j) => <option key={j.id} value={j.id}>{NOM_JOUR[j.id] ?? j.nom}</option>)}
                 </select>
                 <select className={CHAMP} value={copie.debut} onChange={(e) => setCopie({ ...copie, debut: e.target.value })}>
                   {creneauxUtiles.map((c) => <option key={c.index} value={c.debut}>{c.debut}</option>)}
@@ -486,18 +496,18 @@ export function PageEditeurEmploi() {
                 <button type="button" className={BOUTON} onClick={async () => {
                   const source = vue.seances.find((s) => s.id === f.id)!;
                   await copier(source, Number(copie.jour), copie.debut);
-                }}><Copy size={15} /> Copier</button>
+                }}><Copy size={15} /> {tr("Copier")}</button>
               </div>
             )}
 
             <div className="flex justify-between gap-2">
               <div>
-                {f.id && <button type="button" className={`${BOUTON} text-accent-rouge`} onClick={supprimerSeance}><Trash2 size={15} /> Supprimer</button>}
+                {f.id && <button type="button" className={`${BOUTON} text-accent-rouge`} onClick={supprimerSeance}><Trash2 size={15} /> {tr("Supprimer")}</button>}
               </div>
               <div className="flex gap-2">
-                <button type="button" className={BOUTON} onClick={() => setFormulaire(null)}>Annuler</button>
+                <button type="button" className={BOUTON} onClick={() => setFormulaire(null)}>{tr("Annuler")}</button>
                 <button type="button" className={BOUTON_PRIMAIRE} onClick={enregistrerFormulaire}
-                        disabled={!f.classe || !f.matiere || !f.professeur || !f.heure_debut || !f.heure_fin}>Enregistrer</button>
+                        disabled={!f.classe || !f.matiere || !f.professeur || !f.heure_debut || !f.heure_fin}>{tr("Enregistrer")}</button>
               </div>
             </div>
           </div>

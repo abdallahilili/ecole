@@ -39,3 +39,7 @@ class JournalAudit(ModeleImmuable):
     class Meta:
         db_table = "journal_audit"
         ordering = ["-date_action"]
+        indexes = [
+            models.Index(fields=["date_action"], name="audit_date_idx"),
+            models.Index(fields=["modele", "reference_objet"], name="audit_objet_idx"),
+        ]

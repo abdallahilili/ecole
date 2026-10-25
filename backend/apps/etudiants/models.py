@@ -73,6 +73,7 @@ class Inscription(models.Model):
         db_table = "inscription"
         unique_together = [("etudiant", "annee_scolaire")]
         ordering = ["-date_inscription"]
+        indexes = [models.Index(fields=["classe", "annee_scolaire", "statut"], name="inscription_classe_idx")]   # listes d'appel et de notes
         verbose_name = "Inscription"
         verbose_name_plural = "Inscriptions"
 

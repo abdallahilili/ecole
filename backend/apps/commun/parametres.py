@@ -12,9 +12,14 @@ DEFAUTS = {
     "telephone_etablissement": "",
     "entete_ministere": "Ministere de l'Education Nationale",
     "entete_region": "DREN de l'Assaba",
+    # Versions arabes de l'entete des documents (utilisees quand l'interface est en arabe)
+    "nom_etablissement_ar": "المدارس الخاصة العدالة - كيفة",
+    "entete_ministere_ar": "وزارة التهذيب الوطني",
+    "entete_region_ar": "المديرية الجهوية للتعليم بلعصابة",
     # Presences / WhatsApp
     "whatsapp_actif": "0",
     "retard_est_absence": "0",
+    "langue_whatsapp": "fr",          # fr | ar : langue du message envoye aux parents
     # Evaluations
     "abs_justifiee": "exclure",       # exclure | zero
     "abs_non_justifiee": "zero",      # zero | exclure

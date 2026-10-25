@@ -23,7 +23,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from .models import CanalNotification, NotificationWhatsApp, StatutNotification
-from .services import parametres_message
+from .services import langue_message, parametres_message
 
 ORDRE_VARIABLES = ("nom_complet", "classe", "matiere", "date", "heure_debut", "heure_fin", "etablissement")
 
@@ -35,20 +35,28 @@ class ErreurWhatsApp(Exception):
         self.definitif = definitif
 
 
-def api_configuree():
-    return bool(settings.WHATSAPP_JETON and settings.WHATSAPP_ID_NUMERO and settings.WHATSAPP_MODELE)
+def modele_et_langue(langue):
+    """Nom et code de langue du modele approuve par Meta pour la langue du message (un modele par langue)."""
+    if langue == "ar":
+        return settings.WHATSAPP_MODELE_AR, settings.WHATSAPP_LANGUE_AR
+    return settings.WHATSAPP_MODELE, settings.WHATSAPP_LANGUE
 
 
-def envoyer_modele(telephone, variables):
+def api_configuree(langue="fr"):
+    return bool(settings.WHATSAPP_JETON and settings.WHATSAPP_ID_NUMERO and modele_et_langue(langue)[0])
+
+
+def envoyer_modele(telephone, variables, langue="fr"):
     """Envoie le modele approuve ; retourne l'identifiant du message accepte par l'API."""
     url = f"{settings.WHATSAPP_URL_API}/{settings.WHATSAPP_VERSION_API}/{settings.WHATSAPP_ID_NUMERO}/messages"
+    nom_modele, code_langue = modele_et_langue(langue)
     corps = {
         "messaging_product": "whatsapp",
         "to": telephone,
         "type": "template",
         "template": {
-            "name": settings.WHATSAPP_MODELE,
-            "language": {"code": settings.WHATSAPP_LANGUE},
+            "name": nom_modele,
+            "language": {"code": code_langue},
             "components": [{
                 "type": "body",
                 "parameters": [{"type": "text", "text": str(valeur)} for valeur in variables],
@@ -95,9 +103,11 @@ def envoyer_notification(notification, maintenant=None):
         return "ignoree"
     notification.refresh_from_db()
 
-    variables = [parametres_message(notification.presence)[nom] for nom in ORDRE_VARIABLES]
+    langue = langue_message()
+    parametres = parametres_message(notification.presence, langue)
+    variables = [parametres[nom] for nom in ORDRE_VARIABLES]
     try:
-        identifiant = envoyer_modele(notification.telephone, variables)
+        identifiant = envoyer_modele(notification.telephone, variables) if langue == "fr" else envoyer_modele(notification.telephone, variables, langue)
     except ErreurWhatsApp as e:
         notification.erreur = e.message[:500]
         if e.definitif or notification.tentatives >= settings.WHATSAPP_MAX_TENTATIVES:

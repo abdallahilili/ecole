@@ -1,9 +1,9 @@
-# Gestion d'ecole privee - Frontend (Phases 1 a 3)
+# Gestion d'ecole privee - Frontend (Phases 1 a 8)
 
 Application React/TypeScript/Tailwind consommant l'API Django du
-backend. Correspond aux phases 1 a 3 : tableau de bord, referentiels
-scolaires, etudiants/inscriptions/scolarite, professeurs/affectations,
-utilisateurs.
+backend : tableaux de bord par role, referentiels, etudiants et scolarite, presences et
+notifications, notes et bulletins, emplois du temps (glisser-deposer), remuneration,
+parametres et utilisateurs. Le menu et les routes dependent du role de l'utilisateur.
 
 ## Installation
 

@@ -56,19 +56,24 @@ INSTALLED_APPS = [
     "apps.evaluations",
     "apps.emplois_du_temps",
     "apps.remuneration",
+    "apps.tableau_de_bord",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",   # fichiers statiques de l'administration, sans serveur web dedie
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "apps.commun.langue.LangueMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# En production, WhiteNoise sert les fichiers statiques de l'administration (apres `collectstatic`).
+if not DEBUG:
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 ROOT_URLCONF = "config.urls"
 
@@ -96,7 +101,7 @@ if UTILISER_SQLITE:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": os.getenv("FICHIER_SQLITE", str(BASE_DIR / "db.sqlite3")),
         }
     }
 else:
@@ -116,13 +121,17 @@ AUTH_USER_MODEL = "utilisateurs.Utilisateur"
 
 # Politique de mot de passe (appliquee a la creation, la reinitialisation et le changement).
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "OPTIONS": {"user_attributes": ("identifiant", "nom", "prenom")},   # champs de notre modele utilisateur
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "fr-fr"
+LANGUAGE_CODE = "fr"
+LANGUAGES = [("fr", "Francais"), ("ar", "Arabe")]   # langues de l'interface ; Django/DRF traduisent leurs propres messages
 TIME_ZONE = "Africa/Nouakchott"
 USE_I18N = True
 USE_TZ = True
@@ -146,7 +155,7 @@ REST_FRAMEWORK = {
     "ORDERING_PARAM": "tri",
     "EXCEPTION_HANDLER": "apps.commun.exceptions.gestionnaire_exceptions",
     "DEFAULT_RENDERER_CLASSES": (
-        "rest_framework.renderers.JSONRenderer",
+        "apps.commun.rendu.RendererJSONLocalise",
     ),
     # Limitation des essais de connexion (par adresse IP) ; assouplie pendant les tests automatiques.
     "DEFAULT_THROTTLE_RATES": {
@@ -207,6 +216,9 @@ WHATSAPP_JETON = os.getenv("WHATSAPP_JETON", "")
 WHATSAPP_ID_NUMERO = os.getenv("WHATSAPP_ID_NUMERO", "")
 WHATSAPP_MODELE = os.getenv("WHATSAPP_MODELE", "")
 WHATSAPP_LANGUE = os.getenv("WHATSAPP_LANGUE", "fr")
+# Modele approuve pour les messages en arabe (parametre `langue_whatsapp` = ar dans les parametres de l'ecole).
+WHATSAPP_MODELE_AR = os.getenv("WHATSAPP_MODELE_AR", "")
+WHATSAPP_LANGUE_AR = os.getenv("WHATSAPP_LANGUE_AR", "ar")
 WHATSAPP_VERSION_API = os.getenv("WHATSAPP_VERSION_API", "v21.0")
 WHATSAPP_URL_API = os.getenv("WHATSAPP_URL_API", "https://graph.facebook.com")
 WHATSAPP_JETON_VERIFICATION = os.getenv("WHATSAPP_JETON_VERIFICATION", "")

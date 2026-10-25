@@ -107,7 +107,7 @@ class EmploiDuTempsSerializer(serializers.ModelSerializer):
 class SeanceProgrammeeSerializer(serializers.ModelSerializer):
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
     groupe_nom = serializers.CharField(source="groupe.nom", read_only=True, default=None)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
     professeur_nom = serializers.CharField(source="professeur.nom_complet", read_only=True)
     salle_nom = serializers.CharField(source="salle.nom", read_only=True, default=None)
 

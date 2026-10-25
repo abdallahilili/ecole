@@ -41,7 +41,7 @@ class CoursSerializer(serializers.Serializer):
 class SeanceSerializer(serializers.ModelSerializer):
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
     professeur_nom = serializers.CharField(source="professeur.nom_complet", read_only=True, default=None)
     remplacant_nom = serializers.CharField(source="professeur_remplacant.nom_complet", read_only=True, default=None)
     nb_presents = serializers.IntegerField(read_only=True, default=0)
@@ -55,13 +55,12 @@ class SeanceSerializer(serializers.ModelSerializer):
         read_only_fields = ["presences_validees", "validee_le", "validee_par", "heures_effectuees", "cree_par", "cree_le"]
 
     def get_nb_eleves(self, obj):
-        cache = self.context.setdefault("_effectifs", {})
-        cle = (obj.classe_id, obj.annee_scolaire_id)
-        if cle not in cache:
-            cache[cle] = Inscription.objects.filter(
-                classe_id=obj.classe_id, annee_scolaire_id=obj.annee_scolaire_id, statut="ACTIVE"
-            ).count()
-        return cache[cle]
+        # Annotation de la vue (une seule requete pour toute la liste) ; requete directe sinon.
+        if hasattr(obj, "effectif_classe"):
+            return obj.effectif_classe
+        return Inscription.objects.filter(
+            classe_id=obj.classe_id, annee_scolaire_id=obj.annee_scolaire_id, statut="ACTIVE"
+        ).count()
 
     def validate(self, donnees):
         instance = self.instance
@@ -154,7 +153,7 @@ class PresenceEtudiantSerializer(serializers.ModelSerializer):
     heure_debut = serializers.TimeField(source="seance.heure_debut", read_only=True)
     heure_fin = serializers.TimeField(source="seance.heure_fin", read_only=True)
     classe_nom = serializers.CharField(source="seance.classe.nom", read_only=True)
-    matiere_nom = serializers.CharField(source="seance.matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="seance.matiere.nom_affiche", read_only=True)
     professeur_nom = serializers.CharField(source="seance.professeur.nom_complet", read_only=True, default=None)
     seance_validee = serializers.BooleanField(source="seance.presences_validees", read_only=True)
     notification_statut = serializers.SerializerMethodField()
@@ -173,7 +172,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     etudiant_nom = serializers.CharField(source="presence.etudiant.nom_complet", read_only=True)
     etudiant_matricule = serializers.CharField(source="presence.etudiant.matricule", read_only=True)
     classe_nom = serializers.CharField(source="presence.seance.classe.nom", read_only=True)
-    matiere_nom = serializers.CharField(source="presence.seance.matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="presence.seance.matiere.nom_affiche", read_only=True)
     date = serializers.DateField(source="presence.seance.date", read_only=True)
     heure_debut = serializers.TimeField(source="presence.seance.heure_debut", read_only=True)
     heure_fin = serializers.TimeField(source="presence.seance.heure_fin", read_only=True)

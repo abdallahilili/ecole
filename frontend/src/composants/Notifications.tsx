@@ -34,7 +34,7 @@ export function FournisseurNotifications({ children }: { children: ReactNode }) 
   return (
     <Contexte.Provider value={{ notifierSucces, notifierErreur }}>
       {children}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80">
+      <div className="fixed top-4 end-4 z-50 flex flex-col gap-2 w-80">
         {notifications.map((n) => (
           <div
             key={n.id}

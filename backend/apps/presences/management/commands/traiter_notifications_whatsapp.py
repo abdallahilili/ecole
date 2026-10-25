@@ -3,6 +3,7 @@ import time
 from django.core.management.base import BaseCommand
 
 from apps.presences import whatsapp
+from apps.presences.services import langue_message
 
 
 class Command(BaseCommand):
@@ -17,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument("--intervalle", type=int, default=60, help="Secondes entre deux passages (avec --boucle).")
 
     def handle(self, *args, **options):
-        if not whatsapp.api_configuree():
+        if not whatsapp.api_configuree(langue_message()):
             self.stdout.write(self.style.WARNING(
                 "API WhatsApp non configuree (WHATSAPP_JETON, WHATSAPP_ID_NUMERO, WHATSAPP_MODELE) : "
                 "les notifications restent en attente et peuvent etre envoyees via wa.me."

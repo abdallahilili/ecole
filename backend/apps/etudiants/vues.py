@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 
 from apps.commun.constantes import Role
+from apps.commun.excel import orienter_feuille
+from apps.commun.traduction import traduire
 from apps.commun.vues_base import ViewSetGestion
 from .models import Etudiant, Inscription
 from .serializers import EtudiantSerializer, InscriptionSerializer
@@ -58,8 +60,10 @@ class EtudiantViewSet(ViewSetGestion):
         """Modele Excel vierge a telecharger et completer pour l'import."""
         classeur = openpyxl.Workbook()
         feuille = classeur.active
-        feuille.title = "Etudiants"
+        feuille.title = traduire("Etudiants")
+        orienter_feuille(feuille)
         for index, (_, titre, _obligatoire) in enumerate(COLONNES_IMPORT_ETUDIANT, start=1):
+            titre = traduire(titre)
             feuille.cell(row=1, column=index, value=titre)
             feuille.column_dimensions[get_column_letter(index)].width = max(18, len(titre) + 2)
         feuille.cell(row=2, column=1, value="E1001")
@@ -80,14 +84,15 @@ class EtudiantViewSet(ViewSetGestion):
         qs = self.filter_queryset(self.get_queryset())
         classeur = openpyxl.Workbook()
         feuille = classeur.active
-        feuille.title = "Etudiants"
-        entetes = ["Matricule", "Nom", "Prenom", "Sexe", "Date de naissance", "Telephone principal", "Actif"]
+        feuille.title = traduire("Etudiants")
+        orienter_feuille(feuille)
+        entetes = [traduire(h) for h in ["Matricule", "Nom", "Prenom", "Sexe", "Date de naissance", "Telephone principal", "Actif"]]
         feuille.append(entetes)
         for etudiant in qs:
             feuille.append([
                 etudiant.matricule, etudiant.nom, etudiant.prenom, etudiant.sexe,
                 etudiant.date_naissance.isoformat() if etudiant.date_naissance else "",
-                etudiant.telephone_notification, "Oui" if etudiant.actif else "Non",
+                etudiant.telephone_notification, traduire("Oui" if etudiant.actif else "Non"),
             ])
         for index in range(1, len(entetes) + 1):
             feuille.column_dimensions[get_column_letter(index)].width = 20

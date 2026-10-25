@@ -170,3 +170,98 @@ class PermissionsReferentielsTests(TestCase):
         client = APIClient()
         reponse = client.get("/api/referentiels/niveaux/")
         self.assertEqual(reponse.status_code, 401)
+
+
+class CopieClassesTests(TestCase):
+    def setUp(self):
+        self.source = AnneeScolaire.objects.create(libelle="2025-2026", date_debut=date(2025, 9, 1), date_fin=date(2026, 6, 30))
+        self.cible = AnneeScolaire.objects.create(libelle="2026-2027", date_debut=date(2026, 9, 1), date_fin=date(2027, 6, 30), active=True)
+        self.niveau = Niveau.objects.create(nom="Fondamental", code="FOND", ordre=1)
+        self.salle = Salle.objects.create(nom="S1", capacite=50)
+        Classe.objects.create(nom="1AF", niveau=self.niveau, annee_scolaire=self.source, capacite=45, salle_principale=self.salle)
+        Classe.objects.create(nom="2AF", niveau=self.niveau, annee_scolaire=self.source, capacite=40)
+        self.client = APIClient()
+        self.client.force_authenticate(creer_utilisateur())
+        self.url = "/api/referentiels/classes/copier-annee/"
+
+    def test_copie_vers_annee_active_sans_doublon(self):
+        Classe.objects.create(nom="2AF", niveau=self.niveau, annee_scolaire=self.cible, capacite=30)
+        reponse = self.client.post(self.url, {"annee_source": self.source.pk})
+        self.assertEqual(reponse.status_code, 200, reponse.content)
+        self.assertEqual((reponse.json()["copiees"], reponse.json()["ignorees"]), (1, 1))
+        copie = Classe.objects.get(nom="1AF", annee_scolaire=self.cible)
+        self.assertEqual((copie.capacite, copie.salle_principale, copie.niveau), (45, self.salle, self.niveau))
+        self.assertEqual(Classe.objects.get(nom="2AF", annee_scolaire=self.cible).capacite, 30)  # existante conservee
+        # Relancer ne cree rien de plus.
+        self.assertEqual(self.client.post(self.url, {"annee_source": self.source.pk}).json()["copiees"], 0)
+
+    def test_copie_vers_annee_cible_explicite(self):
+        annee_dest = AnneeScolaire.objects.create(
+            libelle="2027-2028", date_debut=date(2027, 10, 1), date_fin=date(2028, 6, 30), active=False
+        )
+        reponse = self.client.post(self.url, {"annee_source": self.source.pk, "annee_cible": annee_dest.pk})
+        self.assertEqual(reponse.status_code, 200, reponse.content)
+        self.assertEqual(reponse.json()["copiees"], 2)
+        self.assertTrue(Classe.objects.filter(nom="1AF", annee_scolaire=annee_dest).exists())
+        self.assertTrue(Classe.objects.filter(nom="2AF", annee_scolaire=annee_dest).exists())
+
+    def test_source_identique_a_la_cible_rejetee(self):
+        reponse = self.client.post(self.url, {"annee_source": self.cible.pk})
+        self.assertEqual(reponse.status_code, 400)
+
+    def test_annee_cible_cloturee_rejetee(self):
+        self.cible.cloturee = True
+        self.cible.save()
+        self.assertEqual(self.client.post(self.url, {"annee_source": self.source.pk}).status_code, 400)
+
+
+class ArchivageAnneeTests(TestCase):
+    def setUp(self):
+        self.annee = AnneeScolaire.objects.create(
+            libelle="2026-2027", date_debut=date(2026, 10, 5), date_fin=date(2027, 6, 30), active=True)
+        niveau = Niveau.objects.create(nom="Fondamental", code="FOND", ordre=1)
+        self.classe = Classe.objects.create(nom="1AF", niveau=niveau, annee_scolaire=self.annee)
+        self.client = APIClient()
+        self.client.force_authenticate(creer_utilisateur())
+        self.url = "/api/referentiels/annees-scolaires/"
+
+    def test_suppression_archive_et_conserve_les_donnees(self):
+        self.assertEqual(self.client.delete(f"{self.url}{self.annee.pk}/").status_code, 204)
+        self.annee.refresh_from_db()
+        self.assertTrue(self.annee.archivee)
+        self.assertFalse(self.annee.active)
+        self.assertIsNotNone(self.annee.date_archivage)
+        self.classe.refresh_from_db()   # la classe existe toujours, rattachee a l'annee archivee
+        self.assertEqual(self.classe.annee_scolaire_id, self.annee.pk)
+
+    def test_nom_reutilisable_et_annee_archivee_masquee(self):
+        self.client.delete(f"{self.url}{self.annee.pk}/")
+        reponse = self.client.post(self.url, {"libelle": "2026-2027", "date_debut": "2026-10-05", "date_fin": "2027-06-30"})
+        self.assertEqual(reponse.status_code, 201, reponse.content)
+        libelles = [a["libelle"] for a in self.client.get(self.url).json()["resultats"]]
+        self.assertEqual(libelles, ["2026-2027"])
+        archivees = self.client.get(self.url, {"archivees": "1"}).json()["resultats"]
+        self.assertEqual([a["id"] for a in archivees], [self.annee.pk])
+        # Les classes de l'annee archivee ne polluent pas la liste des classes.
+        self.assertEqual(self.client.get("/api/referentiels/classes/").json()["resultats"], [])
+
+    def test_archivage_non_modifiable_par_l_api(self):
+        reponse = self.client.patch(f"{self.url}{self.annee.pk}/", {"archivee": True})
+        self.assertEqual(reponse.status_code, 200)
+        self.annee.refresh_from_db()
+        self.assertFalse(self.annee.archivee)
+
+
+class ClassesAnneeActiveTests(TestCase):
+    def test_filtre_annee_active(self):
+        ancienne = AnneeScolaire.objects.create(libelle="2025-2026", date_debut=date(2025, 10, 6), date_fin=date(2026, 6, 30))
+        active = AnneeScolaire.objects.create(libelle="2026-2027", date_debut=date(2026, 10, 5), date_fin=date(2027, 6, 30), active=True)
+        niveau = Niveau.objects.create(nom="Fondamental", code="FOND", ordre=1)
+        Classe.objects.create(nom="1AF", niveau=niveau, annee_scolaire=ancienne)
+        Classe.objects.create(nom="1AF", niveau=niveau, annee_scolaire=active)
+        client = APIClient()
+        client.force_authenticate(creer_utilisateur())
+        url = "/api/referentiels/classes/"
+        self.assertEqual(len(client.get(url).json()["resultats"]), 2)
+        resultats = client.get(url, {"annee_active": "1"}).json()["resultats"]
+        self.assertEqual([c["annee_scolaire"] for c in resultats], [active.pk])

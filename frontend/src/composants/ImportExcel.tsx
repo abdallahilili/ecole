@@ -7,6 +7,7 @@ import { useNotifications } from "./Notifications";
 import { Modale } from "./Modale";
 import { BOUTON, BOUTON_PRIMAIRE, CHAMP } from "./styles";
 
+import { tr } from "../i18n";
 export interface LigneApercu {
   ligne: number;
   matricule: string;
@@ -43,6 +44,9 @@ interface Props<L extends LigneApercu> {
   onImporte: (donnees: any) => void;
 }
 
+const ETATS: Record<string, string> = {
+  NOUVEAU: tr("Nouveau"), IDENTIQUE: tr("Identique"), MODIFIE: tr("A remplacer"), ERREUR: tr("Erreur"), VIDE: tr("Vide"),
+};
 const COULEUR_ETAT: Record<string, string> = {
   NOUVEAU: "text-accent-vert", IDENTIQUE: "text-texte-attenue", MODIFIE: "text-amber-700",
   ERREUR: "text-accent-rouge", VIDE: "text-texte-attenue",
@@ -142,10 +146,10 @@ export function ImportExcel<L extends LigneApercu>({
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" onClick={telechargerModele} className={BOUTON}>
-          <FileSpreadsheet size={15} /> Telecharger le modele
+          <FileSpreadsheet size={15} /> {tr("Telecharger le modele")}
         </button>
         <button type="button" onClick={() => entree.current?.click()} className={BOUTON}>
-          <Upload size={15} /> {fichier ? fichier.name : "Choisir le fichier rempli"}
+          <Upload size={15} /> {fichier ? fichier.name : tr("Choisir le fichier rempli")}
         </button>
         <input
           ref={entree}
@@ -163,24 +167,24 @@ export function ImportExcel<L extends LigneApercu>({
 
       {motifRequis && (
         <div className="mb-3">
-          <input className={`${CHAMP} w-full`} placeholder="Motif de la correction (resultats valides)" value={motif}
+          <input className={`${CHAMP} w-full`} placeholder={tr("Motif de la correction (resultats valides)")} value={motif}
                  onChange={(e) => setMotif(e.target.value)} />
         </div>
       )}
 
-      {enCours && <p className="text-sm text-texte-attenue">Analyse en cours...</p>}
+      {enCours && <p className="text-sm text-texte-attenue">{tr("Analyse en cours...")}</p>}
 
       {apercu && (
         <div>
           <div className="mb-2 flex flex-wrap gap-4 text-sm">
-            <span className="text-accent-vert">{apercu.resume.nouveaux} nouveau(x)</span>
-            <span className="text-texte-attenue">{apercu.resume.identiques} identique(s)</span>
-            <span className="text-amber-700">{apercu.resume.modifies} a remplacer</span>
-            <span className="text-accent-rouge">{apercu.resume.erreurs} erreur(s)</span>
+            <span className="text-accent-vert">{tr("{0} nouveau(x)", apercu.resume.nouveaux)}</span>
+            <span className="text-texte-attenue">{tr("{0} identique(s)", apercu.resume.identiques)}</span>
+            <span className="text-amber-700">{tr("{0} a remplacer", apercu.resume.modifies)}</span>
+            <span className="text-accent-rouge">{tr("{0} erreur(s)", apercu.resume.erreurs)}</span>
           </div>
 
           {blocages.length > 0 && (
-            <ul className="mb-3 list-disc rounded border border-accent-rouge bg-red-50 py-2 pl-7 pr-3 text-sm text-accent-rouge">
+            <ul className="mb-3 list-disc rounded border border-accent-rouge bg-red-50 py-2 ps-7 pe-3 text-sm text-accent-rouge">
               {blocages.map((b) => <li key={b}>{b}</li>)}
             </ul>
           )}
@@ -188,20 +192,20 @@ export function ImportExcel<L extends LigneApercu>({
           {apercu.resume.modifies > 0 && (
             <label className="mb-3 flex items-center gap-2 text-sm">
               <input type="checkbox" checked={remplacer} onChange={(e) => setRemplacer(e.target.checked)} />
-              Remplacer les valeurs deja saisies ({apercu.resume.modifies}) par celles du fichier
+              {tr("Remplacer les valeurs deja saisies ({0}) par celles du fichier", apercu.resume.modifies)}
             </label>
           )}
 
           <div className="max-h-72 overflow-auto rounded border border-bordure">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-fond-barre text-left text-texte-attenue">
-                  <th className="px-2 py-1.5">Ligne</th>
-                  <th className="px-2 py-1.5">Matricule</th>
-                  <th className="px-2 py-1.5">Nom</th>
+                <tr className="bg-fond-barre text-start text-texte-attenue">
+                  <th className="px-2 py-1.5">{tr("Ligne")}</th>
+                  <th className="px-2 py-1.5">{tr("Matricule")}</th>
+                  <th className="px-2 py-1.5">{tr("Nom")}</th>
                   <th className="px-2 py-1.5">{titreValeur}</th>
-                  <th className="px-2 py-1.5">Etat</th>
-                  <th className="px-2 py-1.5">Anomalies</th>
+                  <th className="px-2 py-1.5">{tr("Etat")}</th>
+                  <th className="px-2 py-1.5">{tr("Anomalies")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,7 +215,7 @@ export function ImportExcel<L extends LigneApercu>({
                     <td className="px-2 py-1.5">{l.matricule}</td>
                     <td className="px-2 py-1.5">{l.nom_complet}</td>
                     <td className="px-2 py-1.5">{rendreValeur(l)}</td>
-                    <td className={`px-2 py-1.5 font-medium ${COULEUR_ETAT[l.etat]}`}>{l.etat}</td>
+                    <td className={`px-2 py-1.5 font-medium ${COULEUR_ETAT[l.etat]}`}>{ETATS[l.etat] ?? l.etat}</td>
                     <td className="px-2 py-1.5 text-accent-rouge">{l.anomalies.join(", ")}</td>
                   </tr>
                 ))}
@@ -220,17 +224,15 @@ export function ImportExcel<L extends LigneApercu>({
           </div>
 
           {apercu.non_renseignes.length > 0 && (
-            <p className="mt-2 text-xs text-texte-attenue">
-              Eleves absents du fichier ou sans valeur : {apercu.non_renseignes.join(", ")}.
-            </p>
+            <p className="mt-2 text-xs text-texte-attenue"> {tr("Eleves absents du fichier ou sans valeur : {0}.", apercu.non_renseignes.join(", "))} </p>
           )}
         </div>
       )}
 
       <div className="mt-4 flex justify-end gap-2">
-        <button type="button" onClick={onFermer} className={BOUTON}>Annuler</button>
+        <button type="button" onClick={onFermer} className={BOUTON}>{tr("Annuler")}</button>
         <button type="button" disabled={!apercu || blocages.length > 0 || enCours} onClick={confirmer} className={BOUTON_PRIMAIRE}>
-          Confirmer l&apos;import
+          {tr("Confirmer l'import")}
         </button>
       </div>
     </Modale>

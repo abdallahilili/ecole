@@ -12,6 +12,7 @@ import { formaterHeure } from "../../services/fichiers";
 import { JOURS, NOM_JOUR } from "../../services/jours";
 import type { AnneeScolaire, ConfigurationHoraires, IndisponibiliteSalle } from "../../types";
 
+import { tr } from "../../i18n";
 type Onglet = "horaires" | "salles";
 
 function FormulaireHoraires() {
@@ -34,7 +35,7 @@ function FormulaireHoraires() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annee]);
 
-  if (!config) return <p className="text-sm text-texte-attenue">Chargement...</p>;
+  if (!config) return <p className="text-sm text-texte-attenue">{tr("Chargement...")}</p>;
 
   const jours = config.jours.split(",").filter(Boolean).map(Number);
   const maj = (partiel: Partial<ConfigurationHoraires>) => setConfig({ ...config, ...partiel });
@@ -49,7 +50,7 @@ function FormulaireHoraires() {
     e.preventDefault();
     try {
       await api.patch(`/emplois-du-temps/configuration/${config!.id}/`, config);
-      notifierSucces("Cadre horaire enregistre.");
+      notifierSucces(tr("Cadre horaire enregistre."));
     } catch (err) {
       notifierErreur(messageErreur(err));
     }
@@ -68,13 +69,13 @@ function FormulaireHoraires() {
     <form onSubmit={enregistrer} className="max-w-3xl space-y-4">
       <div className={`${CARTE} grid grid-cols-1 gap-3 md:grid-cols-2`}>
         <div className="col-span-full">
-          <label className={ETIQUETTE}>Annee scolaire</label>
+          <label className={ETIQUETTE}>{tr("Annee scolaire")}</label>
           <select className={CHAMP} value={annee} onChange={(e) => setAnnee(e.target.value)}>
             {annees.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
           </select>
         </div>
         <div className="col-span-full">
-          <label className={ETIQUETTE}>Jours ouvrables</label>
+          <label className={ETIQUETTE}>{tr("Jours ouvrables")}</label>
           <div className="flex flex-wrap gap-3">
             {JOURS.map((j) => (
               <label key={j.value} className="flex items-center gap-1.5 text-sm">
@@ -85,41 +86,41 @@ function FormulaireHoraires() {
           </div>
         </div>
         <div>
-          <label className={ETIQUETTE}>Debut de journee</label>
+          <label className={ETIQUETTE}>{tr("Debut de journee")}</label>
           <input type="time" className={`${CHAMP} w-full`} disabled={!peutModifier} value={config.heure_debut}
                  onChange={(e) => maj({ heure_debut: e.target.value })} />
         </div>
         <div>
-          <label className={ETIQUETTE}>Fin de journee</label>
+          <label className={ETIQUETTE}>{tr("Fin de journee")}</label>
           <input type="time" className={`${CHAMP} w-full`} disabled={!peutModifier} value={config.heure_fin}
                  onChange={(e) => maj({ heure_fin: e.target.value })} />
         </div>
-        {nombre("duree_creneau", "Duree d'un creneau (min)", "Grille de base : toutes les seances sont des multiples du creneau.")}
+        {nombre("duree_creneau", tr("Duree d'un creneau (min)"), tr("Grille de base : toutes les seances sont des multiples du creneau."))}
         <div />
-        {nombre("duree_min_seance", "Duree minimale d'une seance (min)")}
-        {nombre("duree_max_seance", "Duree maximale d'une seance (min)")}
-        {nombre("max_creneaux_jour_professeur", "Creneaux max. par jour et par professeur", "Preference : depassement penalise a la generation.")}
-        {nombre("max_creneaux_consecutifs_professeur", "Creneaux consecutifs max. par professeur")}
+        {nombre("duree_min_seance", tr("Duree minimale d'une seance (min)"))}
+        {nombre("duree_max_seance", tr("Duree maximale d'une seance (min)"))}
+        {nombre("max_creneaux_jour_professeur", tr("Creneaux max. par jour et par professeur"), tr("Preference : depassement penalise a la generation."))}
+        {nombre("max_creneaux_consecutifs_professeur", tr("Creneaux consecutifs max. par professeur"))}
       </div>
 
       <div className={CARTE}>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-texte">Pauses</h2>
+          <h2 className="text-sm font-semibold text-texte">{tr("Pauses")}</h2>
           {peutModifier && (
             <button type="button" className={BOUTON} onClick={() => maj({ pauses: [...config.pauses, { debut: "10:00", fin: "11:00" }] })}>
-              <Plus size={15} /> Ajouter une pause
+              <Plus size={15} /> {tr("Ajouter une pause")}
             </button>
           )}
         </div>
-        <p className="mb-2 text-xs text-texte-attenue">Une pause doit coincider avec la grille de creneaux. Aucune seance ne peut la chevaucher.</p>
-        {config.pauses.length === 0 && <p className="text-sm text-texte-attenue">Aucune pause.</p>}
+        <p className="mb-2 text-xs text-texte-attenue">{tr("Une pause doit coincider avec la grille de creneaux. Aucune seance ne peut la chevaucher.")}</p>
+        {config.pauses.length === 0 && <p className="text-sm text-texte-attenue">{tr("Aucune pause.")}</p>}
         {config.pauses.map((p, i) => (
           <div key={i} className="mb-2 flex items-center gap-2">
             <input type="time" className={CHAMP} disabled={!peutModifier} value={p.debut} onChange={(e) => majPause(i, { debut: e.target.value })} />
             <span className="text-sm text-texte-attenue">a</span>
             <input type="time" className={CHAMP} disabled={!peutModifier} value={p.fin} onChange={(e) => majPause(i, { fin: e.target.value })} />
             {peutModifier && (
-              <button type="button" className="text-texte-attenue hover:text-accent-rouge" title="Retirer"
+              <button type="button" className="text-texte-attenue hover:text-accent-rouge" title={tr("Retirer")}
                       onClick={() => maj({ pauses: config.pauses.filter((_, k) => k !== i) })}>
                 <Trash2 size={16} />
               </button>
@@ -128,7 +129,7 @@ function FormulaireHoraires() {
         ))}
       </div>
 
-      {peutModifier && <button type="submit" className={BOUTON_PRIMAIRE}><Save size={15} /> Enregistrer</button>}
+      {peutModifier && <button type="submit" className={BOUTON_PRIMAIRE}><Save size={15} /> {tr("Enregistrer")}</button>}
     </form>
   );
 }
@@ -140,37 +141,37 @@ export function PagePlanification() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-texte">Planification</h1>
+        <h1 className="text-lg font-semibold text-texte">{tr("Planification")}</h1>
         <div className="flex gap-3 text-sm">
-          <Link to="/disponibilites" className="text-entete hover:underline">Disponibilites des professeurs &rarr;</Link>
-          <Link to="/emplois-du-temps" className="text-entete hover:underline">Emplois du temps &rarr;</Link>
+          <Link to="/disponibilites" className="text-entete hover:underline">{tr("Disponibilites des professeurs →")}</Link>
+          <Link to="/emplois-du-temps" className="text-entete hover:underline">{tr("Emplois du temps →")}</Link>
         </div>
       </div>
       <div className="mb-4 flex gap-2 border-b border-bordure">
-        <button className={style(onglet === "horaires")} onClick={() => setOnglet("horaires")}>Cadre horaire</button>
-        <button className={style(onglet === "salles")} onClick={() => setOnglet("salles")}>Salles indisponibles</button>
+        <button className={style(onglet === "horaires")} onClick={() => setOnglet("horaires")}>{tr("Cadre horaire")}</button>
+        <button className={style(onglet === "salles")} onClick={() => setOnglet("salles")}>{tr("Salles indisponibles")}</button>
       </div>
       {onglet === "horaires" ? (
         <FormulaireHoraires />
       ) : (
         <PageCrud<IndisponibiliteSalle>
-          titre="Indisponibilites des salles"
+          titre={tr("Indisponibilites des salles")}
           url="/emplois-du-temps/indisponibilites-salles/"
           cleLigne={(i) => i.id}
           champRecherche={false}
           valeursParDefaut={{ jour: 0 }}
           colonnes={[
-            { cle: "salle_nom", titre: "Salle" },
-            { cle: "jour", titre: "Jour", rendu: (i) => NOM_JOUR[i.jour] },
-            { cle: "horaire", titre: "Horaire", rendu: (i) => `${formaterHeure(i.heure_debut)} - ${formaterHeure(i.heure_fin)}` },
-            { cle: "motif", titre: "Motif" },
+            { cle: "salle_nom", titre: tr("Salle") },
+            { cle: "jour", titre: tr("Jour"), rendu: (i) => NOM_JOUR[i.jour] },
+            { cle: "horaire", titre: tr("Horaire"), rendu: (i) => `${formaterHeure(i.heure_debut)} - ${formaterHeure(i.heure_fin)}` },
+            { cle: "motif", titre: tr("Motif") },
           ]}
           champs={[
-            { nom: "salle", label: "Salle", type: "select", requis: true, colonnePleine: true, optionsUrl: "/referentiels/salles/", optionLabel: (s) => `${s.nom} (${s.capacite} places)` },
-            { nom: "jour", label: "Jour", type: "select", requis: true, optionsStatiques: JOURS },
-            { nom: "heure_debut", label: "De", type: "heure", requis: true },
+            { nom: "salle", label: tr("Salle"), type: "select", requis: true, colonnePleine: true, optionsUrl: "/referentiels/salles/", optionLabel: (s) => tr("{0} ({1} places)", s.nom, s.capacite) },
+            { nom: "jour", label: tr("Jour"), type: "select", requis: true, optionsStatiques: JOURS },
+            { nom: "heure_debut", label: tr("De"), type: "heure", requis: true },
             { nom: "heure_fin", label: "A", type: "heure", requis: true },
-            { nom: "motif", label: "Motif", colonnePleine: true },
+            { nom: "motif", label: tr("Motif"), colonnePleine: true },
           ]}
         />
       )}

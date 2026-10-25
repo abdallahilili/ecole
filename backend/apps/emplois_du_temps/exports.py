@@ -5,9 +5,11 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.platypus import PageBreak, Spacer, Table
+from reportlab.platypus import PageBreak, Spacer
 
-from apps.commun.pdf import STYLE_PETIT, STYLE_TITRE, construire_pdf, entete_etablissement, multiligne, p, style_tableau
+from apps.commun.excel import orienter_feuille
+from apps.commun.traduction import traduire
+from apps.commun.pdf import Tableau as Table, STYLE_PETIT, STYLE_TITRE, construire_pdf, entete_etablissement, multiligne, p, style_tableau
 from . import services
 
 MODES = ("classe", "professeur", "salle", "matiere")
@@ -15,7 +17,7 @@ MODES = ("classe", "professeur", "salle", "matiere")
 
 def _lignes_seance(s, mode):
     classe = s["classe_nom"] + (f" ({s['groupe_nom']})" if s["groupe_nom"] else "")
-    salle = f"Salle {s['salle_nom']}" if s["salle_nom"] else "Sans salle"
+    salle = traduire(f"Salle {s['salle_nom']}") if s["salle_nom"] else traduire("Sans salle")
     if mode == "classe":
         return [s["matiere_nom"], s["professeur_nom"], salle]
     if mode == "professeur":
@@ -125,13 +127,14 @@ def xlsx_emploi(emploi, filtres, toutes=None):
     classeur = openpyxl.Workbook()
     classeur.remove(classeur.active)
     for titre, mode, donnees in _pages(emploi, filtres, toutes) or []:
-        feuille = classeur.create_sheet(title="".join(c for c in titre.split(" - ", 1)[-1] if c not in "[]:*?/\\")[:31] or "Emploi")
+        feuille = classeur.create_sheet(title="".join(c for c in titre.split(" - ", 1)[-1] if c not in "[]:*?/\\")[:31] or traduire("Emploi"))
+        orienter_feuille(feuille)
         cadre = donnees["cadre"]
         jours = cadre["jours"]
-        feuille.append([titre])
+        feuille.append([traduire(titre)])
         feuille["A1"].font = Font(bold=True, size=12)
         feuille.append([])
-        feuille.append(["Horaire"] + [j["nom"] for j in jours])
+        feuille.append([traduire("Horaire")] + [traduire(j["nom"]) for j in jours])
         for colonne in range(1, len(jours) + 2):
             cellule = feuille.cell(row=3, column=colonne)
             cellule.font = Font(bold=True)
@@ -141,7 +144,7 @@ def xlsx_emploi(emploi, filtres, toutes=None):
             rang = 4 + i
             feuille.cell(row=rang, column=1, value=f"{creneau['debut']}-{creneau['fin']}")
             if creneau["pause"]:
-                feuille.cell(row=rang, column=2, value="Pause")
+                feuille.cell(row=rang, column=2, value=traduire("Pause"))
                 feuille.merge_cells(start_row=rang, start_column=2, end_row=rang, end_column=len(jours) + 1)
                 feuille.cell(row=rang, column=2).fill = PatternFill("solid", fgColor="EEF1F3")
                 continue
@@ -156,5 +159,5 @@ def xlsx_emploi(emploi, filtres, toutes=None):
         for c in range(2, len(jours) + 2):
             feuille.column_dimensions[get_column_letter(c)].width = 26
     if not classeur.sheetnames:
-        classeur.create_sheet("Emploi").append(["Aucune seance"])
+        classeur.create_sheet(traduire("Emploi")).append([traduire("Aucune seance")])
     return classeur

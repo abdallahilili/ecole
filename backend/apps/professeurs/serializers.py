@@ -28,7 +28,7 @@ class ProfesseurSerializer(serializers.ModelSerializer):
 
 class AffectationProfesseurSerializer(serializers.ModelSerializer):
     professeur_nom = serializers.CharField(source="professeur.nom_complet", read_only=True)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
     groupe_nom = serializers.CharField(source="groupe.nom", read_only=True, default=None)
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)

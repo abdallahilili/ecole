@@ -1,5 +1,11 @@
 import axios from "axios";
 import { api, messageErreur } from "./api";
+import { LOCALE, tr } from "../i18n";
+
+/** Unite monetaire affichee (ouguiya). */
+export const UNITE_MONETAIRE = tr("UM");
+/** Unite de duree affichee (heure). */
+export const UNITE_HEURE = tr("h");
 
 type Parametres = Record<string, string | number | boolean | undefined | null>;
 
@@ -58,13 +64,13 @@ export function formaterDate(iso: string | null | undefined): string {
 /** '15600.00' -> '15 600,00 UM' */
 export function formaterMontant(valeur: string | number | null | undefined): string {
   if (valeur === null || valeur === undefined || valeur === "") return "-";
-  return `${Number(valeur).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UM`;
+  return `${Number(valeur).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${UNITE_MONETAIRE}`;
 }
 
 /** '2025-10-01' -> 'octobre 2025' */
 export function formaterMois(iso: string): string {
   const [annee, mois] = iso.split("-").map(Number);
-  return new Date(annee, mois - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  return new Date(annee, mois - 1, 1).toLocaleDateString(LOCALE, { month: "long", year: "numeric" });
 }
 
 export function formaterHeure(heure: string | null | undefined): string {

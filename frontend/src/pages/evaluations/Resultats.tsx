@@ -10,17 +10,18 @@ import { BOUTON, BOUTON_PRIMAIRE, CARTE, CHAMP, ETIQUETTE } from "../../composan
 import { imprimerPdf, messageErreurFichier, telechargerFichier } from "../../services/fichiers";
 import type { AnneeScolaire, Classe, LigneResultat, ResultatsClasse } from "../../types";
 
+import { estArabe, tr } from "../../i18n";
 const PERIODES = [
-  { valeur: "1", libelle: "1er trimestre" },
-  { valeur: "2", libelle: "2e trimestre" },
-  { valeur: "3", libelle: "3e trimestre" },
-  { valeur: "0", libelle: "Annuel" },
+  { valeur: "1", libelle: tr("1er trimestre") },
+  { valeur: "2", libelle: tr("2e trimestre") },
+  { valeur: "3", libelle: tr("3e trimestre") },
+  { valeur: "0", libelle: tr("Annuel") },
 ];
 const DECISIONS = [
-  { valeur: "", libelle: "-- Aucune --" },
-  { valeur: "ADMIS", libelle: "Admis(e)" },
-  { valeur: "REDOUBLE", libelle: "Redouble" },
-  { valeur: "EXCLU", libelle: "Exclu(e)" },
+  { valeur: "", libelle: tr("-- Aucune --") },
+  { valeur: "ADMIS", libelle: tr("Admis(e)") },
+  { valeur: "REDOUBLE", libelle: tr("Redouble") },
+  { valeur: "EXCLU", libelle: tr("Exclu(e)") },
 ];
 
 function Stat({ libelle, valeur }: { libelle: string; valeur: string | null }) {
@@ -80,13 +81,13 @@ export function PageResultats() {
   async function valider(accepterIncomplet = false): Promise<void> {
     try {
       await api.post("/evaluations/resultats/valider/", { classe, periode: Number(periode), accepter_incomplet: accepterIncomplet });
-      notifierSucces("Resultats valides : les bulletins ne sont plus provisoires.");
+      notifierSucces(tr("Resultats valides : les bulletins ne sont plus provisoires."));
       charger();
     } catch (err: any) {
       const detail: string = err?.response?.data?.detail ?? "";
       if (!accepterIncomplet && detail.includes("manquant")) {
         const ok = await demanderConfirmation({
-          titre: "Resultats incomplets", message: `${detail} Valider quand meme ?`,
+          titre: tr("Resultats incomplets"), message: tr("{0} Valider quand meme ?", detail),
         });
         if (ok) await valider(true);
         return;
@@ -97,8 +98,8 @@ export function PageResultats() {
 
   async function lancerValidation() {
     const ok = await demanderConfirmation({
-      titre: "Valider les resultats",
-      message: "Apres validation, les notes de la classe sont verrouillees pour ce trimestre et les bulletins ne sont plus provisoires.",
+      titre: tr("Valider les resultats"),
+      message: tr("Apres validation, les notes de la classe sont verrouillees pour ce trimestre et les bulletins ne sont plus provisoires."),
     });
     if (ok) await valider(false);
   }
@@ -108,7 +109,7 @@ export function PageResultats() {
       await api.post("/evaluations/resultats/rouvrir/", { classe, periode: Number(periode), motif });
       setMotifOuvert(false);
       setMotif("");
-      notifierSucces("Resultats rouverts.");
+      notifierSucces(tr("Resultats rouverts."));
       charger();
     } catch (err) {
       notifierErreur(messageErreur(err));
@@ -139,7 +140,7 @@ export function PageResultats() {
       });
       setDonnees(data);
       setAppreciation(null);
-      notifierSucces("Appreciation enregistree.");
+      notifierSucces(tr("Appreciation enregistree."));
     } catch (err) {
       notifierErreur(messageErreur(err));
     }
@@ -150,46 +151,46 @@ export function PageResultats() {
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-semibold text-texte">Resultats et bulletins</h1>
+      <h1 className="mb-4 text-lg font-semibold text-texte">{tr("Resultats et bulletins")}</h1>
 
       <div className={`${CARTE} mb-4 grid grid-cols-2 gap-3 md:grid-cols-4`}>
         <div>
-          <label className={ETIQUETTE}>Annee scolaire</label>
+          <label className={ETIQUETTE}>{tr("Annee scolaire")}</label>
           <select className={`${CHAMP} w-full`} value={annee} onChange={(e) => { setAnnee(e.target.value); setClasse(""); }}>
             {annees.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Classe</label>
+          <label className={ETIQUETTE}>{tr("Classe")}</label>
           <select className={`${CHAMP} w-full`} value={classe} onChange={(e) => setClasse(e.target.value)}>
             <option value="">--</option>
             {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </div>
         <div>
-          <label className={ETIQUETTE}>Periode</label>
+          <label className={ETIQUETTE}>{tr("Periode")}</label>
           <select className={`${CHAMP} w-full`} value={periode} onChange={(e) => setPeriode(e.target.value)}>
             {PERIODES.map((p) => <option key={p.valeur} value={p.valeur}>{p.libelle}</option>)}
           </select>
         </div>
       </div>
 
-      {chargement && <p className="text-sm text-texte-attenue">Calcul en cours...</p>}
+      {chargement && <p className="text-sm text-texte-attenue">{tr("Calcul en cours...")}</p>}
 
       {donnees && !chargement && (
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-2">
-              <Stat libelle="Effectif" valeur={String(donnees.effectif)} />
-              <Stat libelle="Moyenne de la classe" valeur={donnees.statistiques.moyenne_classe} />
-              <Stat libelle="Plus haute" valeur={donnees.statistiques.plus_haute} />
-              <Stat libelle="Plus basse" valeur={donnees.statistiques.plus_basse} />
-              <Stat libelle="Taux de reussite" valeur={donnees.statistiques.taux_reussite ? `${donnees.statistiques.taux_reussite} %` : null} />
+              <Stat libelle={tr("Effectif")} valeur={String(donnees.effectif)} />
+              <Stat libelle={tr("Moyenne de la classe")} valeur={donnees.statistiques.moyenne_classe} />
+              <Stat libelle={tr("Plus haute")} valeur={donnees.statistiques.plus_haute} />
+              <Stat libelle={tr("Plus basse")} valeur={donnees.statistiques.plus_basse} />
+              <Stat libelle={tr("Taux de reussite")} valeur={donnees.statistiques.taux_reussite ? `${donnees.statistiques.taux_reussite}${estArabe ? "%" : " %"}` : null} />
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className={BOUTON} onClick={() => sortie("imprimer")}><Printer size={15} /> Imprimer les bulletins</button>
-              <button className={BOUTON} onClick={() => sortie("pdf")}><FileText size={15} /> Bulletins PDF</button>
-              <button className={BOUTON} onClick={() => sortie("excel")}><FileSpreadsheet size={15} /> Classement Excel</button>
+              <button className={BOUTON} onClick={() => sortie("imprimer")}><Printer size={15} /> {tr("Imprimer les bulletins")}</button>
+              <button className={BOUTON} onClick={() => sortie("pdf")}><FileText size={15} /> {tr("Bulletins PDF")}</button>
+              <button className={BOUTON} onClick={() => sortie("excel")}><FileSpreadsheet size={15} /> {tr("Classement Excel")}</button>
             </div>
           </div>
 
@@ -199,15 +200,15 @@ export function PageResultats() {
             <span className="flex items-center gap-1.5">
               {donnees.validee ? <CheckCircle2 size={16} /> : null}
               {donnees.validee
-                ? (annuel ? "Les trois trimestres sont valides." : "Resultats valides : notes verrouillees.")
-                : (annuel ? "Resultat annuel provisoire : tous les trimestres ne sont pas encore valides." : "Resultats provisoires : les bulletins portent la mention PROVISOIRE.")}
+                ? (annuel ? tr("Les trois trimestres sont valides.") : tr("Resultats valides : notes verrouillees."))
+                : (annuel ? tr("Resultat annuel provisoire : tous les trimestres ne sont pas encore valides.") : tr("Resultats provisoires : les bulletins portent la mention PROVISOIRE."))}
             </span>
             <span className="flex gap-2">
               {verrouillable && peutValider && (
-                <button className={BOUTON_PRIMAIRE} onClick={lancerValidation}><CheckCircle2 size={15} /> Valider les resultats</button>
+                <button className={BOUTON_PRIMAIRE} onClick={lancerValidation}><CheckCircle2 size={15} /> {tr("Valider les resultats")}</button>
               )}
               {!annuel && donnees.validee && peutRouvrir && (
-                <button className={BOUTON} onClick={() => setMotifOuvert(true)}><Unlock size={15} /> Rouvrir</button>
+                <button className={BOUTON} onClick={() => setMotifOuvert(true)}><Unlock size={15} /> {tr("Rouvrir")}</button>
               )}
             </span>
           </div>
@@ -215,24 +216,24 @@ export function PageResultats() {
           <div className="overflow-x-auto rounded-md border border-bordure bg-fond-carte shadow-carte">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-bordure bg-fond-barre text-left text-texte-attenue">
-                  <th className="px-3 py-2">Rang</th>
-                  <th className="px-3 py-2">Eleve</th>
+                <tr className="border-b border-bordure bg-fond-barre text-start text-texte-attenue">
+                  <th className="px-3 py-2">{tr("Rang")}</th>
+                  <th className="px-3 py-2">{tr("Eleve")}</th>
                   {donnees.matieres.map((m) => (
-                    <th key={m.id} className="px-3 py-2 text-right" title={m.nom}>
-                      {m.nom}<span className="block text-xs font-normal">coef {Number(m.coefficient)}</span>
+                    <th key={m.id} className="px-3 py-2 text-end" title={m.nom}>
+                      {m.nom}<span className="block text-xs font-normal">{tr("coef {0}", Number(m.coefficient))}</span>
                     </th>
                   ))}
-                  {annuel && ["T1", "T2", "T3"].map((t) => <th key={t} className="px-3 py-2 text-right">{t}</th>)}
-                  <th className="px-3 py-2 text-right">Total</th>
-                  <th className="px-3 py-2 text-right">Moyenne</th>
-                  <th className="px-3 py-2">Decision</th>
-                  <th className="px-3 py-2 text-right">Actions</th>
+                  {annuel && ["T1", "T2", "T3"].map((t) => <th key={t} className="px-3 py-2 text-end">{tr(t)}</th>)}
+                  <th className="px-3 py-2 text-end">{tr("Total")}</th>
+                  <th className="px-3 py-2 text-end">{tr("Moyenne")}</th>
+                  <th className="px-3 py-2">{tr("Decision")}</th>
+                  <th className="px-3 py-2 text-end">{tr("Actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {trier.length === 0 && (
-                  <tr><td colSpan={9 + donnees.matieres.length} className="px-3 py-6 text-center text-texte-attenue">Aucun eleve.</td></tr>
+                  <tr><td colSpan={9 + donnees.matieres.length} className="px-3 py-6 text-center text-texte-attenue">{tr("Aucun eleve.")}</td></tr>
                 )}
                 {trier.map((l) => (
                   <tr key={l.etudiant} className="border-b border-bordure last:border-0 hover:bg-fond">
@@ -241,22 +242,22 @@ export function PageResultats() {
                     {donnees.matieres.map((m) => {
                       const d = l.matieres[String(m.id)];
                       return (
-                        <td key={m.id} className={`px-3 py-2 text-right ${d?.incomplete ? "text-amber-700" : ""}`}>
+                        <td key={m.id} className={`px-3 py-2 text-end ${d?.incomplete ? "text-amber-700" : ""}`}>
                           {d?.moyenne ?? "-"}{d?.incomplete && d.moyenne ? "*" : ""}
                         </td>
                       );
                     })}
-                    {annuel && ["1", "2", "3"].map((t) => <td key={t} className="px-3 py-2 text-right">{l.moyennes_trimestres?.[t] ?? "-"}</td>)}
-                    <td className="px-3 py-2 text-right">{l.total_points}</td>
-                    <td className={`px-3 py-2 text-right font-semibold ${l.incomplet ? "text-amber-700" : ""}`}>
+                    {annuel && ["1", "2", "3"].map((t) => <td key={t} className="px-3 py-2 text-end">{l.moyennes_trimestres?.[t] ?? "-"}</td>)}
+                    <td className="px-3 py-2 text-end">{l.total_points}</td>
+                    <td className={`px-3 py-2 text-end font-semibold ${l.incomplet ? "text-amber-700" : ""}`}>
                       {l.moyenne_generale ?? "-"}{l.incomplet && l.moyenne_generale ? "*" : ""}
                     </td>
-                    <td className="px-3 py-2">{DECISIONS.find((d) => d.valeur === l.decision)?.libelle.replace("-- Aucune --", "")}</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2">{DECISIONS.find((d) => d.valeur === l.decision)?.libelle.replace(tr("-- Aucune --"), "")}</td>
+                    <td className="px-3 py-2 text-end">
                       <div className="flex justify-end gap-2">
-                        <button title="Bulletin PDF" className="text-texte-attenue hover:text-entete" onClick={() => sortie("pdf", l.etudiant)}><FileText size={16} /></button>
+                        <button title={tr("Bulletin PDF")} className="text-texte-attenue hover:text-entete" onClick={() => sortie("pdf", l.etudiant)}><FileText size={16} /></button>
                         {peutValider && (
-                          <button title="Appreciations et decision" className="text-texte-attenue hover:text-entete" onClick={() => setAppreciation({ ...l })}>
+                          <button title={tr("Appreciations et decision")} className="text-texte-attenue hover:text-entete" onClick={() => setAppreciation({ ...l })}>
                             <MessageSquare size={16} />
                           </button>
                         )}
@@ -268,46 +269,45 @@ export function PageResultats() {
             </table>
           </div>
           <p className="mt-2 text-xs text-texte-attenue">
-            * Moyenne provisoire : des notes ou matieres sont manquantes. Une note manquante n&apos;est jamais comptee comme zero
-            (sauf regle contraire dans les Parametres). Classement etabli sur la moyenne arrondie au centieme.
+            {tr("* Moyenne provisoire : des notes ou matieres sont manquantes. Une note manquante n'est jamais comptee comme zero (sauf regle contraire dans les Parametres). Classement etabli sur la moyenne arrondie au centieme.")}
           </p>
         </>
       )}
 
-      <Modale titre={`Appreciations - ${appreciation?.nom_complet ?? ""}`} ouverte={!!appreciation} onFermer={() => setAppreciation(null)}>
+      <Modale titre={tr("Appreciations - {0}", appreciation?.nom_complet ?? "")} ouverte={!!appreciation} onFermer={() => setAppreciation(null)}>
         {appreciation && (
           <div className="space-y-3">
             <div>
-              <label className={ETIQUETTE}>Decision du conseil de classe</label>
+              <label className={ETIQUETTE}>{tr("Decision du conseil de classe")}</label>
               <select className={`${CHAMP} w-full`} value={appreciation.decision}
                       onChange={(e) => setAppreciation({ ...appreciation, decision: e.target.value as LigneResultat["decision"] })}>
                 {DECISIONS.map((d) => <option key={d.valeur} value={d.valeur}>{d.libelle}</option>)}
               </select>
             </div>
             <div>
-              <label className={ETIQUETTE}>Observations des professeurs</label>
+              <label className={ETIQUETTE}>{tr("Observations des professeurs")}</label>
               <textarea className={`${CHAMP} w-full`} rows={3} maxLength={500} value={appreciation.observation_professeurs}
                         onChange={(e) => setAppreciation({ ...appreciation, observation_professeurs: e.target.value })} />
             </div>
             <div>
-              <label className={ETIQUETTE}>Observation du directeur</label>
+              <label className={ETIQUETTE}>{tr("Observation du directeur")}</label>
               <textarea className={`${CHAMP} w-full`} rows={3} maxLength={500} value={appreciation.observation_directeur}
                         onChange={(e) => setAppreciation({ ...appreciation, observation_directeur: e.target.value })} />
             </div>
             <div className="flex justify-end gap-2">
-              <button className={BOUTON} onClick={() => setAppreciation(null)}>Annuler</button>
-              <button className={BOUTON_PRIMAIRE} onClick={enregistrerAppreciation}>Enregistrer</button>
+              <button className={BOUTON} onClick={() => setAppreciation(null)}>{tr("Annuler")}</button>
+              <button className={BOUTON_PRIMAIRE} onClick={enregistrerAppreciation}>{tr("Enregistrer")}</button>
             </div>
           </div>
         )}
       </Modale>
 
-      <Modale titre="Rouvrir les resultats" ouverte={motifOuvert} onFermer={() => setMotifOuvert(false)}>
-        <p className="mb-2 text-sm text-texte-attenue">Les notes redeviennent modifiables. Le motif est conserve dans le journal d&apos;audit.</p>
-        <textarea className={`${CHAMP} w-full`} rows={3} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif (obligatoire)" />
+      <Modale titre={tr("Rouvrir les resultats")} ouverte={motifOuvert} onFermer={() => setMotifOuvert(false)}>
+        <p className="mb-2 text-sm text-texte-attenue">{tr("Les notes redeviennent modifiables. Le motif est conserve dans le journal d'audit.")}</p>
+        <textarea className={`${CHAMP} w-full`} rows={3} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder={tr("Motif (obligatoire)")} />
         <div className="mt-3 flex justify-end gap-2">
-          <button className={BOUTON} onClick={() => setMotifOuvert(false)}>Annuler</button>
-          <button className={BOUTON_PRIMAIRE} disabled={!motif.trim()} onClick={rouvrir}>Rouvrir</button>
+          <button className={BOUTON} onClick={() => setMotifOuvert(false)}>{tr("Annuler")}</button>
+          <button className={BOUTON_PRIMAIRE} disabled={!motif.trim()} onClick={rouvrir}>{tr("Rouvrir")}</button>
         </div>
       </Modale>
     </div>

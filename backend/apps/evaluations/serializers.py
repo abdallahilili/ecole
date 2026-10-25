@@ -12,7 +12,7 @@ from .models import Evaluation
 class EvaluationSerializer(serializers.ModelSerializer):
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)
     classe_nom = serializers.CharField(source="classe.nom", read_only=True)
-    matiere_nom = serializers.CharField(source="matiere.nom", read_only=True)
+    matiere_nom = serializers.CharField(source="matiere.nom_affiche", read_only=True)
     nb_notes = serializers.IntegerField(read_only=True, default=0)
     nb_eleves = serializers.SerializerMethodField()
     resultats_valides = serializers.SerializerMethodField()
@@ -23,19 +23,16 @@ class EvaluationSerializer(serializers.ModelSerializer):
         read_only_fields = ["cree_par", "cree_le"]
 
     def get_nb_eleves(self, obj):
-        cache = self.context.setdefault("_effectifs", {})
-        cle = (obj.classe_id, obj.annee_scolaire_id)
-        if cle not in cache:
-            cache[cle] = Inscription.objects.filter(
-                classe_id=obj.classe_id, annee_scolaire_id=obj.annee_scolaire_id, statut="ACTIVE").count()
-        return cache[cle]
+        # Annotation de la vue (une seule requete pour la liste) ; requete directe sinon.
+        if hasattr(obj, "effectif_classe"):
+            return obj.effectif_classe
+        return Inscription.objects.filter(
+            classe_id=obj.classe_id, annee_scolaire_id=obj.annee_scolaire_id, statut="ACTIVE").count()
 
     def get_resultats_valides(self, obj):
-        cache = self.context.setdefault("_validations", {})
-        cle = (obj.classe_id, obj.trimestre)
-        if cle not in cache:
-            cache[cle] = services.resultats_valides(obj.classe, obj.trimestre)
-        return cache[cle]
+        if hasattr(obj, "verrouillee"):
+            return obj.verrouillee
+        return services.resultats_valides(obj.classe, obj.trimestre)
 
     def validate_bareme(self, valeur):
         if valeur <= 0:
@@ -64,7 +61,7 @@ class EvaluationSerializer(serializers.ModelSerializer):
             raise ErreurMetier("La classe choisie n'appartient pas a cette annee scolaire.")
         if not AffectationMatiereClasse.objects.filter(classe=classe, matiere=matiere).exists():
             raise ErreurMetier(
-                f"La matiere '{matiere.nom}' n'est pas enseignee dans la classe {classe.nom} : "
+                f"La matiere '{matiere.nom_affiche}' n'est pas enseignee dans la classe {classe.nom} : "
                 "definissez d'abord son coefficient (Matieres > Coefficients)."
             )
         jour = val("date")

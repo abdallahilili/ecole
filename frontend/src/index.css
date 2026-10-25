@@ -20,3 +20,17 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Arabe : polices systeme avec bon rendu de l'ecriture arabe, sens de lecture de droite a gauche (dir="rtl" pose par i18n). */
+html[dir="rtl"] body {
+  font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", "Noto Naskh Arabic", "Geeza Pro", system-ui, sans-serif;
+}
+
+/* Valeurs toujours ecrites de gauche a droite (numeros, courriels, heures) meme dans une page arabe. */
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="password"],
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] input[inputmode="decimal"] {
+  direction: ltr;
+  text-align: right;
+}

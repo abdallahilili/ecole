@@ -188,7 +188,7 @@ class SeanceProgrammeeViewSet(ViewSetGestion):
 
     @staticmethod
     def _decrire(s):
-        return {"classe": s.classe.nom, "matiere": s.matiere.nom, "professeur": s.professeur.nom_complet,
+        return {"classe": s.classe.nom, "matiere": s.matiere.nom_affiche, "professeur": s.professeur.nom_complet,
                 "salle": s.salle.nom if s.salle else None, "jour": s.jour, "debut": f"{s.heure_debut:%H:%M}", "fin": f"{s.heure_fin:%H:%M}"}
 
     def perform_create(self, serializer):

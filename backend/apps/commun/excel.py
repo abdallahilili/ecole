@@ -6,8 +6,14 @@ import openpyxl
 from django.http import HttpResponse
 
 from .exceptions import ErreurMetier
+from .langue import est_arabe
 
 TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def orienter_feuille(feuille):
+    """Feuille de droite a gauche quand l'interface est en arabe."""
+    feuille.sheet_view.rightToLeft = est_arabe()
 
 
 def reponse_xlsx(classeur, nom_fichier):

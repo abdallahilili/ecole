@@ -169,6 +169,7 @@ class ViewSetGestion(ListeAvanceeMixin, viewsets.ModelViewSet):
         objets = list(self.get_queryset().filter(pk__in=ids))
         if len(objets) != len(set(ids)):
             raise ErreurMetier("Certains elements sont introuvables ou ne vous sont pas accessibles : aucune suppression effectuee.")
+        identifiants = [o.pk for o in objets]   # avant la suppression : Django remet pk a None apres delete()
         with transaction.atomic():
             for objet in objets:
                 try:
@@ -176,7 +177,7 @@ class ViewSetGestion(ListeAvanceeMixin, viewsets.ModelViewSet):
                 except ErreurMetier as e:
                     raise ErreurMetier(f"{objet} : {e.message}")
             enregistrer_audit(request.user, "SUPPRESSION_MULTIPLE", self.basename or "liste", len(objets),
-                              ancienne_valeur={"ids": [o.pk for o in objets]})
+                              ancienne_valeur={"ids": identifiants})
         return Response({"supprimes": len(objets)})
 
 

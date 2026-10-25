@@ -44,7 +44,7 @@ def conflits_pour(emploi, donnees, exclure_pk=None):
     for objet in ("professeur", "matiere", "classe", "groupe", "salle"):
         valeur = donnees.get(objet)
         if valeur is not None:
-            cadre.noms[("prof" if objet == "professeur" else objet, valeur.pk)] = getattr(valeur, "nom_complet", None) or valeur.nom
+            cadre.noms[("prof" if objet == "professeur" else objet, valeur.pk)] = getattr(valeur, "nom_complet", None) or getattr(valeur, "nom_affiche", None) or valeur.nom
     nouvelle = Sc(
         cle="nouvelle", classe=donnees["classe"].pk, groupe=donnees["groupe"].pk if donnees.get("groupe") else None,
         matiere=donnees["matiere"].pk, professeur=donnees["professeur"].pk,
@@ -112,7 +112,7 @@ def generer_emploi(annee, utilisateur, nom, graine=None, temps_max=20, populatio
 def _instantane(emploi):
     return [
         {
-            "classe": s.classe.nom, "groupe": s.groupe.nom if s.groupe else None, "matiere": s.matiere.nom,
+            "classe": s.classe.nom, "groupe": s.groupe.nom if s.groupe else None, "matiere": s.matiere.nom_affiche,
             "professeur": s.professeur.nom_complet, "salle": s.salle.nom if s.salle else None,
             "jour": s.jour, "jour_nom": NOMS_JOURS[s.jour], "heure_debut": f"{s.heure_debut:%H:%M}", "heure_fin": f"{s.heure_fin:%H:%M}",
         }
@@ -192,7 +192,7 @@ def vue_emploi(emploi, filtres):
                   "duree_creneau": cadre.duree_creneau, "debut": hhmm(cadre.debut), "fin": hhmm(cadre.fin)},
         "seances": [{
             "id": s.pk, "classe": s.classe_id, "classe_nom": s.classe.nom, "groupe": s.groupe_id,
-            "groupe_nom": s.groupe.nom if s.groupe else None, "matiere": s.matiere_id, "matiere_nom": s.matiere.nom,
+            "groupe_nom": s.groupe.nom if s.groupe else None, "matiere": s.matiere_id, "matiere_nom": s.matiere.nom_affiche,
             "professeur": s.professeur_id, "professeur_nom": s.professeur.nom_complet, "salle": s.salle_id,
             "salle_nom": s.salle.nom if s.salle else None, "jour": s.jour, "heure_debut": f"{s.heure_debut:%H:%M}",
             "heure_fin": f"{s.heure_fin:%H:%M}", "conflits": par_seance.get(s.pk, []),
@@ -220,7 +220,9 @@ def generer_seances_presence(emploi, du, au, utilisateur):
     with transaction.atomic():
         jour = du
         while jour <= au:
-            en_vacances = annee.debut_vacances and annee.fin_vacances and annee.debut_vacances <= jour <= annee.fin_vacances
+            en_vacances = any(
+                debut and fin and debut <= jour <= fin
+                for debut, fin in ((annee.debut_vacances, annee.fin_vacances), (annee.debut_vacances2, annee.fin_vacances2)))
             if not en_vacances:
                 for p in (p for p in programmees if p.jour == jour.weekday()):
                     _, nouvelle = Seance.objects.get_or_create(
