@@ -143,7 +143,9 @@ function EmploiDuTempsBloc({ s }: { s: Section }) {
   return (
     <Bloc titre={tr("Emploi du temps")} lien={{ vers: "/emplois-du-temps", texte: tr("Ouvrir") }}>
       {s.publie ? (
-        <p className="text-sm">{tx("Publie : {0} ({1} seances, {2})", <b>{s.publie.nom}</b>, s.publie.seances, formaterDate(s.publie.publie_le))}</p>
+        s.publie.nombre > 1
+          ? <p className="text-sm">{tx("{0} emplois du temps publies ({1} seances)", <b>{s.publie.nombre}</b>, s.publie.seances)}</p>
+          : <p className="text-sm">{tx("Publie : {0} ({1} seances, {2})", <b>{s.publie.nom}</b>, s.publie.seances, formaterDate(s.publie.publie_le))}</p>
       ) : <p className="text-sm text-amber-700">{tr("Aucun emploi du temps publie pour cette annee.")}</p>}
       <p className="mt-1 text-sm text-texte-attenue">{tr("{0} brouillon(s)", s.brouillons)}</p>
       {s.derniere_generation && (

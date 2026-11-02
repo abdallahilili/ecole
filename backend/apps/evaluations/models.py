@@ -58,6 +58,11 @@ class Evaluation(models.Model):
     libelle = models.CharField(max_length=80, db_column="libelle")
     type = models.CharField(max_length=20, choices=TypeEvaluation.CHOIX, default=TypeEvaluation.DEVOIR, db_column="type")
     date = models.DateField(null=True, blank=True, db_column="date")
+    # Devoir d'une evaluation « Moy. interrogations » : ses notes ne comptent pas elles-memes dans les resultats, seule
+    # leur moyenne (calculee et enregistree sur l'evaluation parente) est ponderee.
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, db_column="id_parent", related_name="devoirs",
+    )
     bareme = models.DecimalField(max_digits=5, decimal_places=2, default=20, db_column="bareme")
     poids = models.DecimalField(max_digits=5, decimal_places=2, default=1, db_column="poids")
     cree_par = models.ForeignKey(

@@ -26,12 +26,33 @@ def configuration_pour(annee):
     return configuration
 
 
+def _complement(plages):
+    """Plages (debut, fin) en minutes -> ce qui reste de la journee (0-24 h) en dehors d'elles."""
+    reste, curseur = [], 0
+    for debut, fin in sorted(plages):
+        if debut > curseur:
+            reste.append((curseur, debut))
+        curseur = max(curseur, fin)
+    if curseur < 24 * 60:
+        reste.append((curseur, 24 * 60))
+    return reste
+
+
 def charger_cadre(annee, configuration=None):
     configuration = configuration or configuration_pour(annee)
     indispo_prof, preferences, indispo_salle = defaultdict(list), defaultdict(list), defaultdict(list)
+    disponibles = defaultdict(lambda: defaultdict(list))       # professeur -> jour -> [(debut, fin)]
     for d in DisponibiliteProfesseur.objects.all():
-        cible = indispo_prof if d.type == TypeDisponibilite.INDISPONIBLE else preferences
-        cible[d.professeur_id].append((d.jour, minutes(d.heure_debut), minutes(d.heure_fin)))
+        plage = (minutes(d.heure_debut), minutes(d.heure_fin))
+        if d.type == TypeDisponibilite.DISPONIBLE:
+            disponibles[d.professeur_id][d.jour].append(plage)
+        else:
+            cible = indispo_prof if d.type == TypeDisponibilite.INDISPONIBLE else preferences
+            cible[d.professeur_id].append((d.jour, *plage))
+    # Un professeur qui a indique ses creneaux disponibles n'enseigne que dedans : tout le reste est indisponible.
+    for professeur_id, par_jour in disponibles.items():
+        for jour in range(7):
+            indispo_prof[professeur_id] += [(jour, a, b) for a, b in _complement(par_jour.get(jour, []))]
     for i in IndisponibiliteSalle.objects.all():
         indispo_salle[i.salle_id].append((i.jour, minutes(i.heure_debut), minutes(i.heure_fin)))
 
@@ -66,6 +87,7 @@ def charger_cadre(annee, configuration=None):
         indispo_prof=dict(indispo_prof), indispo_salle=dict(indispo_salle),
         capacites={s.id: s.capacite for s in salles}, effectifs=dict(effectifs), affectations=affectations, noms=noms,
         salles_contraintes=configuration.considerer_salles,
+        successives_interdites=configuration.seances_successives_interdites,
     )
     return cadre, dict(preferences), salles
 
@@ -90,6 +112,15 @@ def vers_sc(seance):
     )
 
 
+def _salles_possibles(cadre, salles, salle_habituelle, effectif, groupe):
+    """(salles utilisables, salle preferee) d'une classe ou d'un groupe selon que les salles sont une contrainte ou non."""
+    if cadre.salles_contraintes:
+        return [s.id for s in salles if s.disponible and s.capacite >= effectif], (salle_habituelle if not groupe else None)
+    # Salles non contraignantes : la salle habituelle de la classe est conservee dans l'emploi du temps,
+    # sans verification de capacite, de disponibilite ni d'occupation (elle peut servir plusieurs cours a la fois).
+    return ([salle_habituelle] if salle_habituelle else []), salle_habituelle
+
+
 def construire_unites(annee, cadre, salles):
     """Besoins hebdomadaires : une unite par seance a placer, d'apres les
     affectations des professeurs et, pour chaque (classe, matiere), le nombre
@@ -98,7 +129,6 @@ def construire_unites(annee, cadre, salles):
     besoins = {(b.classe_id, b.matiere_id): b for b in
                AffectationMatiereClasse.objects.filter(classe__annee_scolaire=annee)}
     classes_salle_principale = dict(Classe.objects.filter(annee_scolaire=annee).values_list("id", "salle_principale_id"))
-    utilisables = [s for s in salles if s.disponible]
     ordre = AffectationProfesseur.objects.filter(annee_scolaire=annee).select_related("professeur", "matiere", "classe", "groupe") \
         .order_by("classe__nom", "matiere__nom", "id")
     for a in ordre:
@@ -118,17 +148,9 @@ def construire_unites(annee, cadre, salles):
         if duree < cadre.duree_min or duree > cadre.duree_max:
             diagnostics.append(f"{nom} : une seance durerait {duree} min, hors des limites {cadre.duree_min}-{cadre.duree_max} min.")
         effectif = cadre.effectifs.get((a.classe_id, a.groupe_id), 0)
-        if cadre.salles_contraintes:
-            possibles = [s.id for s in utilisables if s.capacite >= effectif]
-            if not possibles:
-                diagnostics.append(f"{nom} : aucune salle disponible d'au moins {effectif} places.")
-            preferee = classes_salle_principale.get(a.classe_id) if not a.groupe_id else None
-        else:
-            # Salles non contraignantes : la salle habituelle de la classe est conservee dans l'emploi du temps,
-            # sans verification de capacite, de disponibilite ni d'occupation (elle peut servir plusieurs cours a la fois).
-            habituelle = classes_salle_principale.get(a.classe_id)
-            possibles = [habituelle] if habituelle else []
-            preferee = habituelle
+        possibles, preferee = _salles_possibles(cadre, salles, classes_salle_principale.get(a.classe_id), effectif, a.groupe_id)
+        if cadre.salles_contraintes and not possibles:
+            diagnostics.append(f"{nom} : aucune salle disponible d'au moins {effectif} places.")
         for _ in range(besoin.nombre_seances_semaine):
             unites.append(Unite(
                 cle=len(unites) + 1, classe=a.classe_id, groupe=a.groupe_id, matiere=a.matiere_id,
@@ -136,4 +158,28 @@ def construire_unites(annee, cadre, salles):
                 salle_preferee=preferee if preferee in possibles else None,
             ))
         cadre.noms.setdefault(("prof", a.professeur_id), a.professeur.nom_complet)
+    return unites, diagnostics
+
+
+def seances_par_semaine(heures):
+    """Duree en heures des seances d'une matiere : des seances de 2 h, plus une seance d'1 h si le volume est impair
+    (4 -> [2, 2], 5 -> [2, 2, 1], 1 -> [1])."""
+    return [2] * (heures // 2) + ([1] if heures % 2 else [])
+
+
+def unites_classe(cadre, salles, classe, demande):
+    """Seances a placer pour UNE classe. `demande` : [(professeur, matiere, heures)] ; chaque matiere est decoupee par
+    `seances_par_semaine`. Retourne (unites, diagnostics)."""
+    diagnostics, unites = [], []
+    effectif = cadre.effectifs.get((classe.id, None), 0)
+    possibles, preferee = _salles_possibles(cadre, salles, classe.salle_principale_id, effectif, None)
+    if cadre.salles_contraintes and not possibles:
+        diagnostics.append(f"{classe.nom} : aucune salle disponible d'au moins {effectif} places.")
+    par_heure = 60 // cadre.duree_creneau
+    for professeur, matiere, heures in demande:
+        for duree in seances_par_semaine(heures):
+            unites.append(Unite(
+                cle=len(unites) + 1, classe=classe.id, groupe=None, matiere=matiere, professeur=professeur,
+                longueur=duree * par_heure, salles=possibles or [None], salle_preferee=preferee if preferee in possibles else None,
+            ))
     return unites, diagnostics

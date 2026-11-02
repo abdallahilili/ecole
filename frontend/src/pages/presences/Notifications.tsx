@@ -89,7 +89,7 @@ export function PageNotifications() {
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input className={CHAMP} placeholder={tr("Etudiant (nom, matricule)...")} value={filtres.recherche ?? ""}
+        <input className={CHAMP} placeholder={tr("Etudiant (nom, n° d'inscription)...")} value={filtres.recherche ?? ""}
                onChange={(e) => maj("recherche", e.target.value)} />
         <select className={CHAMP} value={filtres.statut ?? ""} onChange={(e) => maj("statut", e.target.value)}>
           <option value="">{tr("Tous les statuts")}</option>

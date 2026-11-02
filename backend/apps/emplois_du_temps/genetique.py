@@ -50,7 +50,9 @@ class Solution:
 
 
 class Probleme:
-    def __init__(self, unites, cadre, preferences=None, max_jour=6, max_consecutifs=4):
+    def __init__(self, unites, cadre, preferences=None, max_jour=6, max_consecutifs=4, fixes=None):
+        """`fixes` : seances deja programmees (objets `Sc`, par exemple celles des autres classes) qui occupent leurs
+        professeurs, salles et classes : les unites a placer ne doivent jamais les chevaucher, mais ne les deplacent pas."""
         self.unites = unites
         self.cadre = cadre
         self.max_jour = max_jour
@@ -58,15 +60,29 @@ class Probleme:
         self.jours = sorted(cadre.jours)
         self.nb_creneaux = (cadre.fin - cadre.debut) // cadre.duree_creneau
         self.valides = set(cadre.creneaux_valides())
+        self.fixes = [self._fixe(s) for s in (fixes or []) if s.fin > s.debut]
+        self.prof_jour_fixe = defaultdict(set)
+        for unite, (jour, depart, _) in self.fixes:
+            self.prof_jour_fixe[(unite.professeur, jour)].update(range(depart, depart + unite.longueur))
         self.positions = [self._positions(u) for u in unites]
         self.bloque_prof = self._bloques(cadre.indispo_prof)
         self.salles_contraintes = cadre.salles_contraintes
+        self.successives_interdites = cadre.successives_interdites
         self.bloque_salle = self._bloques(cadre.indispo_salle) if self.salles_contraintes else {}
         self.preferes = defaultdict(set)
         for prof, liste in (preferences or {}).items():
             for jour, a, b in liste:
                 self.preferes[(prof, jour)] |= self._creneaux_couverts(a, b)
         self.profs_avec_preferences = {prof for prof in (preferences or {}) if preferences[prof]}
+
+    def _fixe(self, seance):
+        """Seance deja programmee -> (unite, gene) comme si le solveur l'avait placee."""
+        duree = self.cadre.duree_creneau
+        unite = Unite(
+            cle=("fixe", seance.cle), classe=seance.classe, groupe=seance.groupe, matiere=seance.matiere,
+            professeur=seance.professeur, longueur=max(1, (seance.fin - seance.debut) // duree), salles=[seance.salle],
+        )
+        return unite, (seance.jour, (seance.debut - self.cadre.debut) // duree, seance.salle)
 
     def _creneaux_couverts(self, a, b):
         d = self.cadre.duree_creneau
@@ -99,7 +115,10 @@ class Probleme:
     # ------------------------------------------------------------ evaluation
 
     def occupation(self):
-        return Occupation(self)
+        occupation = Occupation(self)
+        for unite, gene in self.fixes:
+            occupation.ajouter(unite, gene)
+        return occupation
 
     def evaluer(self, genes):
         occupation = self.occupation()
@@ -111,7 +130,8 @@ class Probleme:
 
     def penalites(self, genes):
         total = 0
-        classe_jour, prof_jour, classe_matiere = defaultdict(set), defaultdict(set), defaultdict(list)
+        classe_jour, classe_matiere = defaultdict(set), defaultdict(list)
+        prof_jour = defaultdict(set, {cle: set(creneaux) for cle, creneaux in self.prof_jour_fixe.items()})   # journee deja chargee
         for unite, (jour, depart, salle) in zip(self.unites, genes):
             creneaux = range(depart, depart + unite.longueur)
             classe_jour[(unite.classe, jour)].update(creneaux)
@@ -155,12 +175,17 @@ class Occupation:
         self.classe_entiere = defaultdict(int)
         self.classe_groupe = defaultdict(int)
         self.classe_total = defaultdict(int)
+        self.prof_classe = defaultdict(int)      # (professeur, classe, jour, creneau) : pour interdire deux seances qui s'enchainent
 
     def conflits(self, unite, gene):
         jour, depart, salle = gene
         bloque_prof = self.p.bloque_prof.get((unite.professeur, jour), ())
         bloque_salle = self.p.bloque_salle.get((salle, jour), ()) if salle is not None else ()
         total = 0
+        if self.p.successives_interdites:       # creneau juste avant ou juste apres, deja pris par ce professeur avec cette classe
+            avant, apres = depart - 1, depart + unite.longueur
+            total += (self.prof_classe.get((unite.professeur, unite.classe, jour, avant), 0)
+                      + self.prof_classe.get((unite.professeur, unite.classe, jour, apres), 0))
         for k in range(depart, depart + unite.longueur):
             total += self.prof.get((unite.professeur, jour, k), 0)
             if salle is not None and self.p.salles_contraintes:
@@ -177,6 +202,7 @@ class Occupation:
         jour, depart, salle = gene
         for k in range(depart, depart + unite.longueur):
             self.prof[(unite.professeur, jour, k)] += signe
+            self.prof_classe[(unite.professeur, unite.classe, jour, k)] += signe
             if salle is not None and self.p.salles_contraintes:
                 self.salle[(salle, jour, k)] += signe
             self.classe_total[(unite.classe, jour, k)] += signe
@@ -203,6 +229,8 @@ def diagnostiquer(probleme):
                 f"{unite.longueur} creneau(x) consecutif(s) ne tient dans aucune journee (pauses, horaires).")
 
     charge_professeur = defaultdict(int)
+    for unite, _ in probleme.fixes:                 # cours deja programmes dans d'autres classes
+        charge_professeur[unite.professeur] += unite.longueur
     entiere, groupes = defaultdict(int), defaultdict(lambda: defaultdict(int))
     for unite in probleme.unites:
         charge_professeur[unite.professeur] += unite.longueur
@@ -210,7 +238,10 @@ def diagnostiquer(probleme):
             entiere[unite.classe] += unite.longueur
         else:
             groupes[unite.classe][unite.groupe] += unite.longueur
+    concernes = {u.professeur for u in probleme.unites}
     for professeur, charge in charge_professeur.items():
+        if professeur not in concernes:
+            continue
         bloques = sum(len([k for k in probleme.bloque_prof.get((professeur, j), ()) if k in probleme.valides])
                       for j in probleme.jours)
         if charge > par_semaine - bloques:

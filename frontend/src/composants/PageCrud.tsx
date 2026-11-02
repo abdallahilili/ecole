@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, Download, Power, PowerOff } from "lucide-react";
 import { api, messageErreur } from "../services/api";
@@ -7,6 +7,7 @@ import { useNotifications } from "./Notifications";
 import { useConfirmation } from "./Confirmation";
 import { Modale } from "./Modale";
 import { ExportListe } from "./ExportListe";
+import { IndicateurEtapes } from "./IndicateurEtapes";
 import { TableauDonnees } from "./TableauDonnees";
 import type { Colonne } from "./TableauDonnees";
 
@@ -27,6 +28,28 @@ export interface ChampFormulaire {
   direction?: "rtl" | "ltr";
   /** Titre de groupe affiche au-dessus de ce champ (debut d'une section du formulaire). */
   section?: string;
+  /** Champ affiche seulement quand la condition est vraie (ex. mensualite proposee une fois la classe choisie). */
+  visible?: (valeurs: Record<string, any>) => boolean;
+  /** Petit texte d'aide sous le champ. */
+  aide?: string;
+  /** Titre d'etape : ce champ ouvre une nouvelle etape du formulaire, que suivent les champs jusqu'a la prochaine
+   * etape. Des qu'un champ en porte un, le formulaire s'affiche en stepper (Precedent / Suivant). */
+  etape?: string;
+  /** Controle personnalise a la place du champ de saisie (ex. recherche d'un etudiant) ; `requis` reste verifie. */
+  rendu?: (valeur: any, onChange: (valeur: any) => void, valeurs: Record<string, any>) => React.ReactNode;
+}
+
+interface EtapeFormulaire { titre: string; champs: ChampFormulaire[] }
+
+/** Regroupe les champs par etape (vide si le formulaire n'a pas d'etapes). */
+function regrouperEtapes(champs: ChampFormulaire[]): EtapeFormulaire[] {
+  if (!champs.some((champ) => champ.etape)) return [];
+  const etapes: EtapeFormulaire[] = [];
+  for (const champ of champs) {
+    if (champ.etape || etapes.length === 0) etapes.push({ titre: champ.etape ?? "", champs: [] });
+    etapes[etapes.length - 1].champs.push(champ);
+  }
+  return etapes;
 }
 
 interface Props<T> {
@@ -45,8 +68,12 @@ interface Props<T> {
   titreForm?: (modif: boolean) => string;
   /** Boutons supplementaires dans l'en-tete ; recoit `recharger` pour rafraichir la liste. */
   enteteExtra?: (recharger: () => void) => React.ReactNode;
-  /** Appele a chaque saisie ; les valeurs renvoyees sont fusionnees dans le formulaire (champs calcules). */
-  surChangement?: (nom: string, valeur: any, valeurs: Record<string, any>) => Record<string, any> | void;
+  /** Appele a chaque saisie ; les valeurs renvoyees sont fusionnees dans le formulaire (champs calcules).
+   * Peut etre asynchrone (ex. valeur proposee par le serveur) : la reponse n'est appliquee que si le champ n'a pas
+   * encore change entre-temps. */
+  surChangement?: (nom: string, valeur: any, valeurs: Record<string, any>) => Record<string, any> | void | Promise<Record<string, any> | void>;
+  /** Boutons supplementaires dans la colonne d'actions de chaque ligne (ex. « Detail »). */
+  actionsLigne?: (ligne: T) => React.ReactNode;
   largeurForm?: string;
   /** Remplace le message de confirmation de suppression (ex. quand "supprimer" archive). */
   messageSuppression?: string;
@@ -129,7 +156,7 @@ export function PageCrud<T extends Record<string, any>>({
   titre, url, colonnes, champs, cleLigne,
   peutCreer = true, peutModifier = true, peutSupprimer = true,
   filtres, parametresFiltre = {}, valeursParDefaut = {}, champRecherche = true,
-  titreForm, enteteExtra, surChangement, largeurForm, messageSuppression, estInactif = (ligne) => ligne.actif === false,
+  titreForm, enteteExtra, surChangement, actionsLigne, largeurForm, messageSuppression, estInactif = (ligne) => ligne.actif === false,
 }: Props<T>) {
   const [inactifs, setInactifs] = useState(false);
   const {
@@ -167,28 +194,56 @@ export function PageCrud<T extends Record<string, any>>({
   const [enModification, setEnModification] = useState<T | null>(null);
   const [valeursForm, setValeursForm] = useState<Record<string, any>>({});
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [etape, setEtape] = useState(0);
+  const etapes = regrouperEtapes(champs);
+  const derniereEtape = etapes.length === 0 || etape >= etapes.length - 1;
 
   function ouvrirCreation() {
     setEnModification(null);
     setValeursForm({ ...valeursParDefaut });
+    setEtape(0);
     setModaleOuverte(true);
   }
 
   function ouvrirModification(ligne: T) {
     setEnModification(ligne);
     setValeursForm({ ...ligne });
+    setEtape(0);
     setModaleOuverte(true);
   }
 
+  const saisies = useRef<Record<string, number>>({});   // numero de la derniere saisie de chaque champ
+
   function modifierChamp(nom: string, valeur: any) {
-    setValeursForm((s) => {
-      const suivant = { ...s, [nom]: valeur };
-      return { ...suivant, ...surChangement?.(nom, valeur, suivant) };
-    });
+    const suivant = { ...valeursForm, [nom]: valeur };
+    const calcule = surChangement?.(nom, valeur, suivant);
+    if (calcule instanceof Promise) {
+      setValeursForm(suivant);
+      const numero = (saisies.current[nom] = (saisies.current[nom] ?? 0) + 1);
+      calcule.then((partiel) => {
+        if (partiel && saisies.current[nom] === numero) setValeursForm((s) => ({ ...s, ...partiel }));
+      });
+    } else {
+      setValeursForm({ ...suivant, ...calcule });
+    }
   }
+
+  /** Champs de l'etape en cours (tous les champs sans stepper) qui sont affiches. */
+  const champsAffiches = (etapes.length ? etapes[etape]?.champs ?? [] : champs)
+    .filter((champ) => !champ.visible || champ.visible(valeursForm));
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
+    // Les champs de saisie sont controles par le navigateur (required) ; les controles personnalises, ici.
+    const manquant = champsAffiches.find((champ) => champ.rendu && champ.requis && !valeursForm[champ.nom]);
+    if (manquant) {
+      notifierErreur(tr("Champ obligatoire : {0}", manquant.label));
+      return;
+    }
+    if (!derniereEtape) {   // « Suivant » (ou Entree) : etape suivante, rien n'est envoye
+      setEtape(etape + 1);
+      return;
+    }
     setEnvoiEnCours(true);
     try {
       if (enModification) {
@@ -302,9 +357,10 @@ export function PageCrud<T extends Record<string, any>>({
         nombrePages={nombrePages}
         onChangerPage={setPage}
         actions={
-          peutModifier || peutSupprimer
+          peutModifier || peutSupprimer || actionsLigne
             ? (ligne) => (
                 <div className="flex items-center justify-end gap-2">
+                  {actionsLigne?.(ligne)}
                   {estInactif(ligne) && (
                     <span className="rounded bg-fond-barre px-1.5 py-0.5 text-xs text-texte-attenue">{tr("Inactif")}</span>
                   )}
@@ -351,8 +407,11 @@ export function PageCrud<T extends Record<string, any>>({
         onFermer={() => setModaleOuverte(false)}
         largeur={largeurForm}
       >
+        {etapes.length > 0 && (
+          <IndicateurEtapes titres={etapes.map((e) => e.titre)} courante={etape} onAller={setEtape} libre={!!enModification} />
+        )}
         <form onSubmit={soumettre} className="grid grid-cols-2 gap-3">
-          {champs.map((champ) => (
+          {champsAffiches.map((champ) => (
             <Fragment key={champ.nom}>
               {champ.section && (
                 <h3 className="col-span-2 mt-2 border-b border-bordure pb-1 text-sm font-semibold text-entete">
@@ -363,29 +422,45 @@ export function PageCrud<T extends Record<string, any>>({
                 <label className="mb-1 block text-sm font-medium text-texte">
                   {champ.label} {champ.requis && <span className="text-accent-rouge">*</span>}
                 </label>
-                <ChampEntree
-                  champ={champ}
-                  valeur={valeursForm[champ.nom]}
-                  onChange={(v) => modifierChamp(champ.nom, v)}
-                />
+                {champ.rendu ? champ.rendu(valeursForm[champ.nom], (v) => modifierChamp(champ.nom, v), valeursForm) : (
+                  <ChampEntree
+                    champ={champ}
+                    valeur={valeursForm[champ.nom]}
+                    onChange={(v) => modifierChamp(champ.nom, v)}
+                  />
+                )}
+                {champ.aide && <p className="mt-1 text-xs text-texte-attenue">{champ.aide}</p>}
               </div>
             </Fragment>
           ))}
-          <div className="col-span-2 mt-2 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setModaleOuverte(false)}
-              className="rounded border border-bordure px-3 py-1.5 text-sm hover:bg-fond"
-            >
-              {tr("Annuler")}
-            </button>
-            <button
-              type="submit"
-              disabled={envoiEnCours}
-              className="rounded bg-entete px-3 py-1.5 text-sm font-medium text-white hover:bg-entete-fonce disabled:opacity-50"
-            >
-              {tr("Enregistrer")}
-            </button>
+          <div className="col-span-2 mt-2 flex justify-between gap-2">
+            <div>
+              {etape > 0 && etapes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setEtape(etape - 1)}
+                  className="rounded border border-bordure px-3 py-1.5 text-sm hover:bg-fond"
+                >
+                  {tr("Precedent")}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setModaleOuverte(false)}
+                className="rounded border border-bordure px-3 py-1.5 text-sm hover:bg-fond"
+              >
+                {tr("Annuler")}
+              </button>
+              <button
+                type="submit"
+                disabled={envoiEnCours}
+                className="rounded bg-entete px-3 py-1.5 text-sm font-medium text-white hover:bg-entete-fonce disabled:opacity-50"
+              >
+                {derniereEtape ? tr("Enregistrer") : tr("Suivant")}
+              </button>
+            </div>
           </div>
         </form>
       </Modale>

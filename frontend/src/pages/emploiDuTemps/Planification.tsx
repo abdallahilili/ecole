@@ -111,6 +111,16 @@ function FormulaireHoraires() {
             </span>
           </span>
         </label>
+        <label className="col-span-full flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1 h-4 w-4" disabled={!peutModifier} checked={config.seances_successives_interdites}
+                 onChange={(e) => maj({ seances_successives_interdites: e.target.checked })} />
+          <span>
+            <span className="font-medium text-texte">{tr("Interdire deux seances successives d'un professeur avec la meme classe")}</span>
+            <span className="block text-xs text-texte-attenue">
+              {tr("Coche : entre deux seances d'un meme professeur avec la meme classe, il y a toujours au moins un creneau libre ou une pause.")}
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className={CARTE}>

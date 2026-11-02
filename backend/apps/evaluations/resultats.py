@@ -52,7 +52,7 @@ def resultats_trimestre(classe, trimestre, regles=None):
         AffectationMatiereClasse.objects.filter(classe=classe).select_related("matiere").order_by("id")
     )
     coefficients = {a.matiere_id: a.coefficient for a in affectations}
-    evaluations = list(Evaluation.objects.filter(classe=classe, trimestre=trimestre).order_by("date", "id"))
+    evaluations = list(Evaluation.objects.filter(classe=classe, trimestre=trimestre, parent__isnull=True).order_by("date", "id"))
     par_matiere = defaultdict(list)
     for evaluation in evaluations:
         par_matiere[evaluation.matiere_id].append(evaluation)
@@ -91,7 +91,8 @@ def resultats_trimestre(classe, trimestre, regles=None):
         general = calculs.moyenne_generale(moyennes, coefficients, regles)
         appreciation = appreciations.get(etudiant.id)
         lignes.append({
-            "etudiant": etudiant.id, "matricule": etudiant.matricule, "nom_complet": etudiant.nom_complet,
+            "etudiant": etudiant.id, "numero_inscription": inscription.numero_inscription, "matricule": etudiant.matricule,
+            "nom_complet": etudiant.nom_complet,
             "matieres": detail, "total_points": general.total_points,
             "total_coefficients": general.total_coefficients, "moyenne_generale": general.moyenne,
             "incomplet": general.incomplet or matiere_incomplete,
@@ -141,7 +142,8 @@ def resultats_annuels(classe, regles=None):
                 total_coef += coefficients[mid]
         appreciation = appreciations.get(eid)
         lignes.append({
-            "etudiant": eid, "matricule": ligne1["matricule"], "nom_complet": ligne1["nom_complet"],
+            "etudiant": eid, "numero_inscription": ligne1["numero_inscription"], "matricule": ligne1["matricule"],
+            "nom_complet": ligne1["nom_complet"],
             "moyennes_trimestres": moyennes_t,
             "rangs_trimestres": {t: (l["rang"] if l else None) for t, l in lignes_t.items()},
             "matieres": matieres, "total_points": total_points, "total_coefficients": total_coef,
@@ -178,8 +180,8 @@ def liste_notes(evaluation):
     for numero, inscription in enumerate(eleves_classe(evaluation.classe_id, evaluation.annee_scolaire_id), start=1):
         note = notes.get(inscription.etudiant_id)
         lignes.append({
-            "numero": numero, "etudiant": inscription.etudiant_id, "matricule": inscription.etudiant.matricule,
-            "nom_complet": inscription.etudiant.nom_complet,
+            "numero": numero, "etudiant": inscription.etudiant_id, "numero_inscription": inscription.numero_inscription,
+            "matricule": inscription.etudiant.matricule, "nom_complet": inscription.etudiant.nom_complet,
             "statut": note.statut if note else "MANQUANTE",
             "valeur": (format(note.valeur.normalize(), "f") if note and note.valeur is not None else None),
         })

@@ -78,10 +78,15 @@ export function PageEditeurEmploi() {
   // L'annee vient de l'emploi lui-meme (et non de la grille) : la grille ne peut se charger qu'une fois une classe
   // choisie, et la liste des classes depend de l'annee.
   const [anneeEmploi, setAnneeEmploi] = useState<number | undefined>(undefined);
+  const [classeEmploi, setClasseEmploi] = useState<number | null>(null);   // emploi d'une classe : la grille s'ouvre sur elle
+  const choixInitialFait = useRef(false);
   const annee = anneeEmploi ?? vue?.emploi.annee_scolaire;
   useEffect(() => {
     if (estProfesseur) return;
-    api.get(`/emplois-du-temps/emplois/${id}/`).then(({ data }) => setAnneeEmploi(data.annee_scolaire)).catch((err) => notifierErreur(messageErreur(err)));
+    api.get(`/emplois-du-temps/emplois/${id}/`).then(({ data }) => {
+      setAnneeEmploi(data.annee_scolaire);
+      setClasseEmploi(data.classe ?? null);
+    }).catch((err) => notifierErreur(messageErreur(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, estProfesseur]);
   // Le professeur voit sa propre grille (filtre impose par le serveur) : aucune liste a charger.
@@ -99,8 +104,14 @@ export function PageEditeurEmploi() {
   }, [mode, classes, professeurs, salles, matieres]);
 
   useEffect(() => {
-    if (!estProfesseur && !options.some((o) => String(o.id) === cible)) setCible(options[0] ? String(options[0].id) : "");
-  }, [options, cible, estProfesseur]);
+    if (estProfesseur) return;
+    if (!choixInitialFait.current && mode === "classe" && classeEmploi && options.some((o) => o.id === classeEmploi)) {
+      choixInitialFait.current = true;
+      setCible(String(classeEmploi));
+      return;
+    }
+    if (!options.some((o) => String(o.id) === cible)) setCible(options[0] ? String(options[0].id) : "");
+  }, [options, cible, estProfesseur, mode, classeEmploi]);
 
   const charger = useCallback(async () => {
     if (!estProfesseur && !cible) return;

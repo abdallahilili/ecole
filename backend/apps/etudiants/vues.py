@@ -4,18 +4,22 @@ from datetime import date, datetime
 import openpyxl
 from openpyxl.utils import get_column_letter
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.http import HttpResponse
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 
 from apps.commun.constantes import Role
 from apps.commun.excel import orienter_feuille
+from apps.commun.exceptions import ErreurMetier
 from apps.commun.traduction import traduire
 from apps.commun.vues_base import ViewSetGestion
 from apps.referentiels.models import Classe
+from apps.scolarite import services as services_scolarite
 from .models import Etudiant, Inscription
-from .serializers import EtudiantSerializer, InscriptionSerializer
+from .serializers import ROLES_SANS_MONTANT, EtudiantSerializer, InscriptionSerializer
 
 COLONNES_IMPORT_ETUDIANT = [
     ("matricule", "Matricule", True),
@@ -47,8 +51,11 @@ class EtudiantViewSet(ViewSetGestion):
     serializer_class = EtudiantSerializer
     roles_lecture = ROLES_LECTURE
     roles_ecriture = ROLES_ECRITURE
-    search_fields = ["matricule", "nom", "prenom", "numero_national"]
-    alias_tri = {"nom_complet": ("nom", "prenom")}
+    search_fields = [
+        "matricule", "nom", "prenom", "numero_national", "numero_inscription",
+        "telephone_principal", "telephone_pere", "telephone_mere", "telephone_tuteur",
+    ]
+    alias_tri = {"nom_complet": ("nom", "prenom"), "numero_inscription": "numero_inscription"}
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -59,7 +66,10 @@ class EtudiantViewSet(ViewSetGestion):
         classe = self.request.query_params.get("classe")
         if classe:
             qs = qs.filter(inscriptions__classe_id=classe, inscriptions__statut="ACTIVE").distinct()
-        return qs
+        # Numero d'inscription affiche : celui de la classe demandee, sinon celui de l'annee active.
+        inscriptions = Inscription.objects.filter(etudiant=OuterRef("pk"), statut="ACTIVE")
+        inscriptions = inscriptions.filter(classe_id=classe) if classe else inscriptions.filter(annee_scolaire__active=True)
+        return qs.annotate(numero_inscription=Subquery(inscriptions.values("numero_inscription")[:1]))
 
     @action(detail=False, methods=["get"], url_path="modele-import")
     def modele_import(self, request):
@@ -92,11 +102,11 @@ class EtudiantViewSet(ViewSetGestion):
         feuille = classeur.active
         feuille.title = traduire("Etudiants")
         orienter_feuille(feuille)
-        entetes = [traduire(h) for h in ["Matricule", "Nom", "Prenom", "Sexe", "Date de naissance", "Telephone principal", "Actif"]]
+        entetes = [traduire(h) for h in ["N° d'inscription", "Matricule", "Nom", "Prenom", "Sexe", "Date de naissance", "Telephone principal", "Actif"]]
         feuille.append(entetes)
         for etudiant in qs:
             feuille.append([
-                etudiant.matricule, etudiant.nom, etudiant.prenom, etudiant.sexe,
+                etudiant.numero_inscription or "", etudiant.matricule, etudiant.nom, etudiant.prenom, etudiant.sexe,
                 etudiant.date_naissance.isoformat() if etudiant.date_naissance else "",
                 etudiant.telephone_notification, traduire("Oui" if etudiant.actif else "Non"),
             ])
@@ -207,11 +217,20 @@ class EtudiantViewSet(ViewSetGestion):
         with transaction.atomic():
             Etudiant.objects.bulk_create(a_creer)
             if classe is not None:
-                crees = Etudiant.objects.filter(matricule__in=[e.matricule for e in a_creer])
+                crees = {e.matricule: e for e in Etudiant.objects.filter(matricule__in=[e.matricule for e in a_creer])}
+                montant = services_scolarite.montant_mensuel_defaut(classe)   # tarif de la classe, lu une seule fois
+                # bulk_create n'appelle pas Inscription.save : les numeros (dans l'ordre du fichier) sont attribues ici.
+                numeros = Inscription.prochains_numeros(classe.annee_scolaire_id, len(a_creer))
                 Inscription.objects.bulk_create([
-                    Inscription(etudiant=e, annee_scolaire=classe.annee_scolaire, classe=classe, date_inscription=date.today())
-                    for e in crees
+                    Inscription(
+                        etudiant=crees[e.matricule], annee_scolaire=classe.annee_scolaire, classe=classe, date_inscription=date.today(),
+                        montant_mensuel=montant, numero_inscription=numero,
+                    )
+                    for e, numero in zip(a_creer, numeros)
                 ])
+                crees = list(crees.values())
+                for inscription in Inscription.objects.filter(classe=classe, etudiant__in=crees).select_related("classe", "annee_scolaire"):
+                    services_scolarite.generer_echeances(inscription)   # fiche de paiement de chaque eleve importe
         return Response({"detail": f"{len(a_creer)} etudiant(s) importe(s) avec succes.", "nombre_importes": len(a_creer)}, status=201)
 
 
@@ -240,3 +259,20 @@ class InscriptionViewSet(ViewSetGestion):
         if statut:
             qs = qs.filter(statut=statut)
         return qs
+
+    def champs_orm(self):
+        champs = super().champs_orm()
+        if getattr(self.request.user, "role", None) in ROLES_SANS_MONTANT:   # ni tri ni filtre sur un montant masque
+            return {nom: chemin for nom, chemin in champs.items() if nom != "montant_mensuel"}
+        return champs
+
+    @action(detail=False, methods=["get"], url_path="montant-defaut")
+    def montant_defaut(self, request):
+        """?classe=<id> : mensualite proposee a l'inscription (tarif de la classe, sinon grille de frais du niveau)."""
+        if request.user.role not in ROLES_ECRITURE:
+            raise PermissionDenied()
+        classe = Classe.objects.filter(pk=request.query_params.get("classe") or 0).first()
+        if classe is None:
+            raise ErreurMetier("Classe introuvable.")
+        montant = services_scolarite.montant_mensuel_defaut(classe)
+        return Response({"montant_mensuel": f"{montant:.2f}" if montant is not None else None})

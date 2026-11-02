@@ -40,7 +40,7 @@ function PanneauSituation() {
       </div>
       {situation && (
         <div className="mt-3 text-sm text-texte">
-          <p><strong>{situation.etudiant}</strong> ({situation.matricule}) - {situation.classe} - {situation.annee_scolaire}</p>
+          <p><strong>{situation.etudiant}</strong> ({situation.numero_inscription}) - {situation.classe} - {situation.annee_scolaire}</p>
           <p className="mt-1">{tx("Frais d'inscription : {0}", situation.frais_inscription_paye
               ? <span className="text-accent-vert">{tr("paye")}</span>
               : <span className="text-accent-rouge">{tr("non paye")}</span>)}</p>
@@ -74,7 +74,7 @@ export function PagePaiementsScolarite() {
         titreForm={() => tr("Nouveau paiement")}
         colonnes={[
           { cle: "reference", titre: tr("Reference") },
-          { cle: "etudiant_matricule", titre: tr("Matricule") },
+          { cle: "numero_inscription", titre: tr("N° d'inscription") },
           { cle: "etudiant_nom", titre: tr("Etudiant") },
           { cle: "classe_nom", titre: tr("Classe") },
           { cle: "type_frais", titre: tr("Type") },
@@ -85,7 +85,7 @@ export function PagePaiementsScolarite() {
         champs={[
           {
             nom: "inscription", label: tr("Inscription"), type: "select", requis: true,
-            optionsUrl: "/etudiants/inscriptions/", optionLabel: (i) => `${i.etudiant_nom} (${i.etudiant_matricule}) - ${i.classe_nom}`,
+            optionsUrl: "/etudiants/inscriptions/", optionLabel: (i) => `${i.etudiant_nom} (${i.numero_inscription}) - ${i.classe_nom}`,
           },
           {
             nom: "type_frais", label: tr("Type de frais"), type: "select", requis: true, optionsStatiques: [

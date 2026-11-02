@@ -186,6 +186,12 @@ export function PageParametres() {
           tr("Si coche, les parents des eleves en retard sont aussi notifies."))}
       </section>
 
+      <section className={`${CARTE} space-y-3`}>
+        <h2 className="text-sm font-semibold text-texte">{tr("Fiche de paiement de la scolarite")}</h2>
+        {interrupteur("annee_dix_mois", tr("Annee scolaire de 10 mois (juillet inclus)"),
+          tr("Coche : la fiche va d'octobre a juillet (10 mois). Decoche : d'octobre a juin (9 mois). A l'enregistrement, les fiches de l'annee en cours sont mises a jour : juillet est ajoute, ou retire s'il n'est pas encore paye."))}
+      </section>
+
       <section className={`${CARTE} grid grid-cols-1 gap-3 md:grid-cols-2`}>
         <h2 className="col-span-full text-sm font-semibold text-texte">{tr("Regles de calcul des evaluations")}</h2>
         {choix("abs_justifiee", tr("Absence justifiee a une evaluation"), [

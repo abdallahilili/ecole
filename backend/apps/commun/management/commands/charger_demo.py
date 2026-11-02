@@ -15,7 +15,7 @@ from apps.commun.exceptions import ErreurMetier
 from apps.emplois_du_temps import services as emplois
 from apps.emplois_du_temps.models import ConfigurationHoraires, DisponibiliteProfesseur, EmploiDuTemps
 from apps.etudiants.models import Etudiant, Inscription
-from apps.evaluations import services as evaluations
+from apps.evaluations import grille, services as evaluations
 from apps.evaluations.models import Evaluation, Note, StatutNote
 from apps.presences import services as presences
 from apps.presences.models import Seance
@@ -24,6 +24,7 @@ from apps.referentiels.models import (
     AffectationMatiereClasse, AnneeScolaire, Classe, Matiere, Niveau, Salle, TarifClasse,
 )
 from apps.remuneration import services as remuneration
+from apps.scolarite import services as services_scolarite
 from apps.scolarite.models import GrilleFrais, PaiementScolarite
 from apps.utilisateurs.models import Utilisateur
 
@@ -43,7 +44,7 @@ PROFESSEURS = [("Sy", "Oumar"), ("Ba", "Cheikh"), ("Fall", "Awa"), ("Sow", "Mama
 PRENOMS = ["Aziza", "Mohamed Lemine", "Fatimetou", "Cheikh", "Mariem", "Ahmed", "Khadijetou", "Sidi", "Aicha", "Brahim",
            "Zeinebou", "Abdallahi", "Oumou", "Yahya", "Meimouna", "Ely", "Salka", "Moctar", "Vatma", "Isselmou"]
 NOMS = ["Abdallahi", "Ahmed", "Mohamed", "Sidi", "Brahim", "Ould Ely", "Vall", "Lemrabott", "Cheikh", "Mahmoud", "Salem", "Taleb"]
-EVALUATIONS_T = [("Moy. interrogations", "INTERROGATION", 3), ("1ere composition", "EXAMEN", 1), ("2e composition", "EXAMEN", 2)]
+DEVOIRS_PAR_TRIMESTRE = {1: 3, 2: 2}     # T1 complet (3 devoirs + 1ere composition), T2 en cours (2 devoirs + 2e composition)
 
 
 def debut_annee(aujourdhui):
@@ -115,7 +116,7 @@ class Command(BaseCommand):
             TarifClasse.objects.get_or_create(classe=classe, defaults={"montant": [900, 1500, 2500][len(self.classes) - 1]})
         for niveau in self.niveaux:
             GrilleFrais.objects.get_or_create(
-                annee_scolaire=self.annee, niveau=niveau, defaults={"montant_mensuel": 1500, "frais_inscription": 500, "nombre_mois": 9})
+                annee_scolaire=self.annee, niveau=niveau, defaults={"montant_mensuel": 1500, "frais_inscription": 500, "nombre_mois": 10})
         self.matieres_et_professeurs()
 
     def creer_annee_demo(self):
@@ -182,6 +183,7 @@ class Command(BaseCommand):
     def scolarite(self):
         for inscription in self.inscriptions:
             numero = inscription.etudiant.matricule
+            services_scolarite.generer_echeances(inscription)   # fiche de paiement de l'eleve, au tarif de sa classe
             PaiementScolarite.objects.create(
                 reference=f"SCOL-DEMO-{numero}-I", inscription=inscription, type_frais="INSCRIPTION", montant=500,
                 date_paiement=self.annee.date_debut, enregistre_par=self.admin)
@@ -189,26 +191,30 @@ class Command(BaseCommand):
                 premier = date(self.annee.date_debut.year + (1 if mois + 10 > 12 else 0), (mois + 9) % 12 + 1, 1)
                 PaiementScolarite.objects.create(
                     reference=f"SCOL-DEMO-{numero}-{mois}", inscription=inscription, type_frais="MENSUALITE", mois_concerne=premier,
-                    montant=1500, date_paiement=min(premier + timedelta(days=self.hasard.randint(0, 6)), self.aujourdhui), enregistre_par=self.admin)
+                    montant=inscription.montant_mensuel or 1500, date_paiement=min(premier + timedelta(days=self.hasard.randint(0, 6)), self.aujourdhui), enregistre_par=self.admin)
 
     def evaluations(self):
-        """T1 complet et valide ; T2 en cours (notes encore a saisir)."""
+        """T1 complet et valide ; T2 en cours (notes encore a saisir). Structure du modele : N devoirs dont la moyenne
+        (x3) donne « Moy. interrogations », et la composition du trimestre."""
         for classe in self.classes:
             eleves = [i.etudiant for i in self.inscriptions if i.classe_id == classe.id]
             for matiere in self.matieres:
-                for trimestre, nb in ((1, 3), (2, 2)):
-                    for numero, (libelle, type_, poids) in enumerate(EVALUATIONS_T[:nb]):
+                for trimestre, nombre_devoirs in DEVOIRS_PAR_TRIMESTRE.items():
+                    cours = grille.lire_cours({"annee_scolaire": self.annee.id, "classe": classe.id, "matiere": matiere.id, "trimestre": trimestre})
+                    grille.configurer(cours, {"nombre_devoirs": nombre_devoirs}, self.admin)
+                    interrogations, composition, _ = grille.classer(cours)
+                    colonnes = list(interrogations.devoirs.order_by("id")) + [composition]
+                    for numero, evaluation in enumerate(colonnes):
                         jour = date(self.annee.date_debut.year, 10, 1) + timedelta(days=30 * (trimestre - 1) * 3 + numero * 25)
-                        evaluation = Evaluation.objects.create(
-                            annee_scolaire=self.annee, classe=classe, matiere=matiere, trimestre=trimestre, libelle=libelle,
-                            type=type_, poids=poids, bareme=20, date=min(jour, self.annee.date_fin))
+                        Evaluation.objects.filter(pk=evaluation.pk).update(date=min(jour, self.annee.date_fin))
                         for etudiant in eleves:
-                            if trimestre == 2 and numero == 1 and self.hasard.random() < 0.4:
+                            if trimestre == 2 and evaluation == composition and self.hasard.random() < 0.4:
                                 continue                       # note du 2e trimestre pas encore saisie
                             if self.hasard.random() < 0.03:
                                 Note.objects.create(evaluation=evaluation, etudiant=etudiant, statut=StatutNote.ABSENT_JUSTIFIE)
                             else:
                                 Note.objects.create(evaluation=evaluation, etudiant=etudiant, valeur=Decimal(str(round(self.hasard.uniform(4, 19.5) * 4) / 4)))
+                    evaluations.recalculer_moyenne_interrogations(interrogations, [e.id for e in eleves])
             # Dans une base existante, la classe peut compter d'autres eleves sans notes : validation acceptee quand meme.
             evaluations.valider_resultats(classe, 1, self.admin, accepter_incomplet=self.ajouter)
 

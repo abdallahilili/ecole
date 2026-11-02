@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Download, Upload, FileSpreadsheet, ClipboardCheck } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, ClipboardCheck, Eye } from "lucide-react";
 import { PageCrud } from "../../composants/PageCrud";
 import { BOUTON } from "../../composants/styles";
 import { api, messageErreur } from "../../services/api";
@@ -86,13 +86,13 @@ function BarreImportExport({ onImporte, classeId }: { onImporte: () => void; cla
   );
 }
 
-/** Boutons d'impression du registre de presence mensuel de la classe (noms des eleves + colonnes des jours). */
+/** Boutons d'impression de la feuille de presence d'une seance de la classe (numero d'inscription + nom des eleves, date/heure/matiere/professeur a remplir). */
 function ModelesPresence({ classe }: { classe: Classe }) {
   const { notifierErreur } = useNotifications();
 
   async function telecharger(format: "pdf" | "xlsx") {
     try {
-      await telechargerFichier("/presences/seances/modele-classe/", `registre_presence_${classe.nom}.${format}`, { classe: classe.id, fichier: format });
+      await telechargerFichier("/presences/seances/modele-classe/", `modele_presence_${classe.nom}.${format}`, { classe: classe.id, fichier: format });
     } catch (err) {
       notifierErreur(await messageErreurFichier(err));
     }
@@ -100,10 +100,10 @@ function ModelesPresence({ classe }: { classe: Classe }) {
 
   return (
     <>
-      <button onClick={() => telecharger("pdf")} className={BOUTON} title={tr("Registre de presence mensuel de la classe, avec les noms des etudiants")}>
+      <button onClick={() => telecharger("pdf")} className={BOUTON} title={tr("Feuille de presence d'une seance de la classe, avec numero d'inscription et nom des etudiants")}>
         <ClipboardCheck size={15} /> {tr("Modele de presence")} PDF
       </button>
-      <button onClick={() => telecharger("xlsx")} className={BOUTON} title={tr("Registre de presence mensuel de la classe, avec les noms des etudiants")}>
+      <button onClick={() => telecharger("xlsx")} className={BOUTON} title={tr("Feuille de presence d'une seance de la classe, avec numero d'inscription et nom des etudiants")}>
         <ClipboardCheck size={15} /> {tr("Modele de presence")} Excel
       </button>
     </>
@@ -123,9 +123,19 @@ function ListeEtudiants({ classe }: { classe?: Classe }) {
       valeursParDefaut={{ sexe: "M", actif: true, ...(classe ? { classe_inscription: classe.id } : {}) }}
       filtres={<BarreImportExport classeId={classe?.id} onImporte={() => setCle((c) => c + 1)} />}
       enteteExtra={classe && peut("presences") ? () => <ModelesPresence classe={classe} /> : undefined}
+      actionsLigne={(e) => (
+        <Link to={`/etudiants/fiche/${e.id}`} className="text-texte-attenue hover:text-entete" title={tr("Detail : fiche de l'etudiant et de paiement")}>
+          <Eye size={15} />
+        </Link>
+      )}
+      largeurForm="max-w-2xl"
       colonnes={[
+        { cle: "numero_inscription", titre: tr("N° d'inscription"), rendu: (e) => <span className="font-medium">{e.numero_inscription ?? "-"}</span> },
         { cle: "matricule", titre: tr("Matricule") },
-        { cle: "nom_complet", titre: tr("Nom complet") },
+        {
+          cle: "nom_complet", titre: tr("Nom complet"),
+          rendu: (e) => <Link to={`/etudiants/fiche/${e.id}`} className="text-entete hover:underline">{e.nom_complet}</Link>,
+        },
         { cle: "sexe", titre: tr("Sexe") },
         { cle: "date_naissance", titre: tr("Naissance") },
         { cle: "telephone_principal", titre: tr("Telephone") },
@@ -139,22 +149,25 @@ function ListeEtudiants({ classe }: { classe?: Classe }) {
         },
       ]}
       champs={[
-        { nom: "matricule", label: tr("Matricule"), requis: true },
+        { nom: "matricule", label: tr("Matricule"), requis: true, etape: tr("Identite") },
         { nom: "nom", label: tr("Nom"), requis: true },
         { nom: "prenom", label: tr("Prenom"), requis: true },
         { nom: "sexe", label: tr("Sexe"), type: "select", optionsStatiques: [{ value: "M", label: tr("Masculin") }, { value: "F", label: tr("Feminin") }] },
         { nom: "date_naissance", label: tr("Date de naissance"), type: "date" },
         { nom: "lieu_naissance", label: tr("Lieu de naissance") },
-        { nom: "numero_national", label: tr("Numero national") },
-        { nom: "adresse", label: tr("Adresse"), colonnePleine: true },
-        { nom: "nom_pere", label: tr("Nom du pere") },
+        { nom: "numero_national", label: tr("Numero national"), colonnePleine: true },
+        { nom: "nom_pere", label: tr("Nom du pere"), etape: tr("Parents et tuteur") },
         { nom: "telephone_pere", label: tr("Telephone du pere") },
         { nom: "nom_mere", label: tr("Nom de la mere") },
         { nom: "telephone_mere", label: tr("Telephone de la mere") },
         { nom: "nom_tuteur", label: tr("Nom du tuteur") },
         { nom: "telephone_tuteur", label: tr("Telephone du tuteur") },
+        { nom: "adresse", label: tr("Adresse"), colonnePleine: true, etape: tr("Contact et statut") },
         { nom: "telephone_principal", label: tr("Telephone principal (notifications)"), colonnePleine: true },
-        { nom: "actif", label: tr("Actif"), type: "checkbox" },
+        {
+          nom: "actif", label: tr("Actif"), type: "checkbox",
+          aide: classe ? tr("L'etudiant sera inscrit dans la classe {0} : son numero d'inscription est attribue automatiquement.", classe.nom) : undefined,
+        },
       ]}
     />
   );

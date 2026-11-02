@@ -17,7 +17,8 @@ class ConfigurationHorairesSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigurationHoraires
         fields = "__all__"
-        extra_kwargs = {"considerer_salles": {"default": True}}   # formulaire sans la case : reste actif (DRF lirait « faux »)
+        # Formulaire sans la case : reste actif (DRF lirait « faux »).
+        extra_kwargs = {"considerer_salles": {"default": True}, "seances_successives_interdites": {"default": True}}
 
     def validate_jours(self, valeur):
         try:
@@ -90,12 +91,13 @@ class IndisponibiliteSalleSerializer(_PlageSerializer):
 
 class EmploiDuTempsSerializer(serializers.ModelSerializer):
     annee_scolaire_libelle = serializers.CharField(source="annee_scolaire.libelle", read_only=True)
+    classe_nom = serializers.CharField(source="classe.nom", read_only=True, default=None)
     nb_seances = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = EmploiDuTemps
         fields = "__all__"
-        read_only_fields = ["statut", "origine", "rapport", "cree_par", "cree_le", "publie_le"]
+        read_only_fields = ["classe", "statut", "origine", "rapport", "cree_par", "cree_le", "publie_le"]
 
     def validate(self, donnees):
         if self.instance:
@@ -131,6 +133,8 @@ class SeanceProgrammeeSerializer(serializers.ModelSerializer):
             raise ErreurMetier("L'heure de fin doit etre posterieure a l'heure de debut.")
         if classe.annee_scolaire_id != emploi.annee_scolaire_id:
             raise ErreurMetier("La classe choisie n'appartient pas a l'annee scolaire de cet emploi du temps.")
+        if emploi.classe_id and classe.id != emploi.classe_id:
+            raise ErreurMetier("Cet emploi du temps est celui d'une seule classe : les seances d'une autre classe n'y ont pas leur place.")
         if groupe and groupe.classe_id != classe.id:
             raise ErreurMetier("Le groupe choisi n'appartient pas a la classe selectionnee.")
         valeurs = {c: val(c) for c in ("classe", "groupe", "matiere", "professeur", "salle", "jour", "heure_debut", "heure_fin")}

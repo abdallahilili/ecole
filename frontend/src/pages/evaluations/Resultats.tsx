@@ -116,11 +116,12 @@ export function PageResultats() {
     }
   }
 
-  async function sortie(type: "excel" | "pdf" | "imprimer", etudiant?: number) {
+  async function sortie(type: "excel" | "classement" | "pdf" | "imprimer", etudiant?: number) {
     try {
       const params = { classe, periode, ...(etudiant ? { etudiants: etudiant } : {}) };
       const nom = `${donnees?.classe_nom ?? "classe"}_${annuel ? "annuel" : `T${periode}`}`;
       if (type === "excel") await telechargerFichier("/evaluations/resultats/exporter/", `classement_${nom}.xlsx`, params);
+      if (type === "classement") await telechargerFichier("/evaluations/resultats/classement/", `classement_${nom}.pdf`, params);
       if (type === "pdf") await telechargerFichier("/evaluations/resultats/bulletins/", `bulletins_${nom}.pdf`, params);
       if (type === "imprimer") await imprimerPdf("/evaluations/resultats/bulletins/", params);
     } catch (err) {
@@ -190,6 +191,7 @@ export function PageResultats() {
             <div className="flex flex-wrap gap-2">
               <button className={BOUTON} onClick={() => sortie("imprimer")}><Printer size={15} /> {tr("Imprimer les bulletins")}</button>
               <button className={BOUTON} onClick={() => sortie("pdf")}><FileText size={15} /> {tr("Bulletins PDF")}</button>
+              <button className={BOUTON} onClick={() => sortie("classement")}><FileText size={15} /> {tr("Classement PDF")}</button>
               <button className={BOUTON} onClick={() => sortie("excel")}><FileSpreadsheet size={15} /> {tr("Classement Excel")}</button>
             </div>
           </div>
@@ -218,6 +220,7 @@ export function PageResultats() {
               <thead>
                 <tr className="border-b border-bordure bg-fond-barre text-start text-texte-attenue">
                   <th className="px-3 py-2">{tr("Rang")}</th>
+                  <th className="px-3 py-2">{tr("N° d'appel")}</th>
                   <th className="px-3 py-2">{tr("Eleve")}</th>
                   {donnees.matieres.map((m) => (
                     <th key={m.id} className="px-3 py-2 text-end" title={m.nom}>
@@ -233,12 +236,13 @@ export function PageResultats() {
               </thead>
               <tbody>
                 {trier.length === 0 && (
-                  <tr><td colSpan={9 + donnees.matieres.length} className="px-3 py-6 text-center text-texte-attenue">{tr("Aucun eleve.")}</td></tr>
+                  <tr><td colSpan={10 + donnees.matieres.length} className="px-3 py-6 text-center text-texte-attenue">{tr("Aucun eleve.")}</td></tr>
                 )}
                 {trier.map((l) => (
                   <tr key={l.etudiant} className="border-b border-bordure last:border-0 hover:bg-fond">
                     <td className="px-3 py-2 font-medium">{l.rang ?? "-"}</td>
-                    <td className="px-3 py-2">{l.nom_complet}<span className="block text-xs text-texte-attenue">{l.matricule}</span></td>
+                    <td className="px-3 py-2">{l.numero_inscription}</td>
+                    <td className="px-3 py-2">{l.nom_complet}</td>
                     {donnees.matieres.map((m) => {
                       const d = l.matieres[String(m.id)];
                       return (

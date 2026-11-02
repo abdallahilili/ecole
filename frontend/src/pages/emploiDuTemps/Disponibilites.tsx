@@ -6,8 +6,9 @@ import { JOURS, NOM_JOUR } from "../../services/jours";
 import type { DisponibiliteProfesseur } from "../../types";
 
 import { tr } from "../../i18n";
-/** Indisponibilites (contrainte obligatoire) et creneaux preferes (souple) des
- * professeurs. Un professeur ne gere que les siens (impose cote serveur). */
+/** Creneaux disponibles (le professeur n'enseigne que dedans), indisponibilites (contraintes obligatoires) et creneaux
+ * preferes (souple) des professeurs. Un professeur ne gere que les siens (impose cote serveur). Les creneaux disponibles
+ * se saisissent aussi a la creation d'un emploi du temps. */
 export function PageDisponibilites() {
   const { utilisateur } = useAuth();
   const estProfesseur = utilisateur?.role === "PROFESSEUR";
@@ -25,7 +26,8 @@ export function PageDisponibilites() {
         {
           cle: "type", titre: tr("Type"),
           rendu: (d: DisponibiliteProfesseur) => d.type === "INDISPONIBLE"
-            ? <Badge statut="ABSENT" /> : <span className="text-accent-vert">{tr("Prefere")}</span>,
+            ? <Badge statut="ABSENT" />
+            : <span className="text-accent-vert">{d.type === "DISPONIBLE" ? tr("Disponible") : tr("Prefere")}</span>,
         },
         { cle: "commentaire", titre: tr("Commentaire") },
       ]}
@@ -37,6 +39,7 @@ export function PageDisponibilites() {
         { nom: "jour", label: tr("Jour"), type: "select", requis: true, optionsStatiques: JOURS },
         {
           nom: "type", label: tr("Type"), type: "select", requis: true, optionsStatiques: [
+            { value: "DISPONIBLE", label: tr("Disponible (uniquement ces creneaux)") },
             { value: "INDISPONIBLE", label: tr("Indisponible (obligatoire)") },
             { value: "PREFERE", label: tr("Creneau prefere (souhait)") },
           ],

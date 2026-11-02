@@ -162,6 +162,16 @@ def multiligne(*valeurs, style=STYLE_NORMAL):
     return _paragraphe(valeurs, style, False)
 
 
+def bilingue(texte_fr, texte_ar, style=STYLE_NORMAL):
+    """« Francais / arabe » sur une meme ligne, chaque langue dans sa police (standard / Amiri), sans traduction ni
+    inversion de sens : le francais reste a gauche. Sans texte arabe distinct, le francais seul."""
+    francais = escape(texte_fr)
+    if not texte_ar or texte_ar == texte_fr:
+        return Paragraph(francais, style)
+    arabe = escape(_visuel(texte_ar, rtl=True))      # l'arabe est ordonne comme une ligne arabe a part entiere (parentheses comprises)
+    return Paragraph(f'{francais} / <font name="{POLICE_ARABE}">{arabe}</font>', style)
+
+
 # --------------------------------------------------------------------------- tableaux
 
 _MIROIR_ALIGNEMENT = {"LEFT": "RIGHT", "RIGHT": "LEFT"}

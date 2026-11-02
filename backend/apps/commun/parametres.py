@@ -31,6 +31,8 @@ DEFAUTS = {
     "matiere_non_evaluee": "exclure",  # exclure | zero (le bulletin papier compte 0)
     "ex_aequo": "meme_rang",          # meme_rang | alphabetique
     "poids_trimestres": "1,1,1",
+    # Scolarite
+    "annee_dix_mois": "1",            # 1 : fiche de paiement d'octobre a juillet (10 mois) ; 0 : d'octobre a juin (9 mois)
 }
 
 VRAI = ("1", "true", "oui", "vrai", "yes", "on")

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from apps.commun.constantes import Sexe, StatutInscription, TypeInscription
 from apps.referentiels.models import AnneeScolaire, Classe, Groupe
 
@@ -48,11 +48,23 @@ class Etudiant(models.Model):
         return self.telephone_principal or self.telephone_pere or self.telephone_mere or self.telephone_tuteur
 
 
+PREFIXE_NUMERO_INSCRIPTION = "E"
+
+
+def _rang_numero(numero):
+    """E012 -> 12 (0 si le numero n'a pas ce format)."""
+    chiffres = (numero or "").removeprefix(PREFIXE_NUMERO_INSCRIPTION)
+    return int(chiffres) if chiffres.isdigit() else 0
+
+
 class Inscription(models.Model):
     etudiant = models.ForeignKey(Etudiant, on_delete=models.PROTECT, db_column="id_etudiant", related_name="inscriptions")
     annee_scolaire = models.ForeignKey(
         AnneeScolaire, on_delete=models.PROTECT, db_column="id_annee_scolaire", related_name="inscriptions"
     )
+    # Identifiant de l'eleve dans sa classe : E001, E002... dans l'ordre des inscriptions de l'annee. Une nouvelle
+    # inscription (nouvelle annee) donne un nouveau numero ; il est attribue automatiquement a la creation.
+    numero_inscription = models.CharField(max_length=20, blank=True, default="", db_column="numero_inscription")
     classe = models.ForeignKey(Classe, on_delete=models.PROTECT, db_column="id_classe", related_name="inscriptions")
     groupe = models.ForeignKey(
         Groupe, null=True, blank=True, on_delete=models.SET_NULL, db_column="id_groupe", related_name="inscriptions"
@@ -66,12 +78,15 @@ class Inscription(models.Model):
     )
     date_inscription = models.DateField(db_column="date_inscription")
     date_fin = models.DateField(null=True, blank=True, db_column="date_fin")
+    # Mensualite due par l'eleve : pre-remplie avec le tarif de la classe, modifiable ; sert de base a la fiche de paiement.
+    montant_mensuel = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, db_column="montant_mensuel")
     etablissement_origine = models.CharField(max_length=150, blank=True, default="", db_column="etablissement_origine")
     observations = models.CharField(max_length=255, blank=True, default="", db_column="observations")
 
     class Meta:
         db_table = "inscription"
         unique_together = [("etudiant", "annee_scolaire")]
+        constraints = [models.UniqueConstraint(fields=["annee_scolaire", "numero_inscription"], name="inscription_numero_unique")]
         ordering = ["-date_inscription"]
         indexes = [models.Index(fields=["classe", "annee_scolaire", "statut"], name="inscription_classe_idx")]   # listes d'appel et de notes
         verbose_name = "Inscription"
@@ -79,3 +94,23 @@ class Inscription(models.Model):
 
     def __str__(self):
         return f"{self.etudiant} - {self.annee_scolaire} - {self.classe}"
+
+    @classmethod
+    def prochains_numeros(cls, annee_scolaire_id, nombre=1):
+        """`nombre` numeros d'inscription consecutifs a la suite du dernier de l'annee (E001, E002...). L'annee est
+        verrouillee jusqu'a la fin de la transaction en cours : deux inscriptions simultanees n'obtiennent pas le meme numero."""
+        with transaction.atomic():
+            AnneeScolaire.objects.select_for_update().get(pk=annee_scolaire_id)
+            dernier = max(
+                (_rang_numero(n) for n in cls.objects.filter(annee_scolaire_id=annee_scolaire_id).values_list("numero_inscription", flat=True)),
+                default=0,
+            )
+            return [f"{PREFIXE_NUMERO_INSCRIPTION}{dernier + i:03d}" for i in range(1, nombre + 1)]
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and not self.numero_inscription:
+            with transaction.atomic():
+                self.numero_inscription = self.prochains_numeros(self.annee_scolaire_id)[0]
+                super().save(*args, **kwargs)
+            return
+        super().save(*args, **kwargs)

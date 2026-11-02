@@ -106,6 +106,8 @@ export interface AffectationMatiereClasse {
 export interface Etudiant {
   id: number;
   matricule: string;
+  /** Numero d'inscription de la classe demandee, sinon de l'annee active (null si non inscrit). */
+  numero_inscription: string | null;
   nom: string;
   prenom: string;
   nom_complet: string;
@@ -127,6 +129,7 @@ export interface Etudiant {
 
 export interface Inscription {
   id: number;
+  numero_inscription: string;
   etudiant: number;
   etudiant_nom: string;
   etudiant_matricule: string;
@@ -140,6 +143,7 @@ export interface Inscription {
   statut: "ACTIVE" | "TRANSFEREE" | "ABANDON" | "DIPLOME";
   date_inscription: string;
   date_fin: string | null;
+  montant_mensuel: string | null;
   etablissement_origine: string;
   observations: string;
 }
@@ -192,6 +196,7 @@ export interface PaiementScolarite {
   inscription: number;
   etudiant_nom: string;
   etudiant_matricule: string;
+  numero_inscription: string;
   classe_nom: string;
   type_frais: "INSCRIPTION" | "MENSUALITE" | "AUTRE";
   mois_concerne: string | null;
@@ -206,6 +211,7 @@ export interface PaiementScolarite {
 export interface SituationScolarite {
   etudiant: string;
   matricule: string;
+  numero_inscription: string;
   classe: string;
   annee_scolaire: string;
   montant_mensuel: string | null;
@@ -214,6 +220,35 @@ export interface SituationScolarite {
   frais_inscription_paye: boolean;
   mois_payes: string[];
   total_paye: string;
+}
+
+export type EtatMois = "NON_PAYE" | "PARTIEL" | "PAYE";
+
+/** Un mois de la fiche de paiement d'un eleve. */
+export interface LigneFiche {
+  id: number;
+  mois: string;
+  montant: string;
+  paye: string;
+  reste: string;
+  statut: EtatMois;
+  reference: string | null;
+  date_paiement: string | null;
+  mode_paiement: PaiementScolarite["mode_paiement"] | null;
+  encaisse_par: string | null;
+}
+
+export interface FicheScolarite {
+  inscription: number;
+  etudiant: number;
+  etudiant_nom: string;
+  matricule: string;
+  numero_inscription: string;
+  classe_nom: string;
+  annee_scolaire_libelle: string;
+  montant_mensuel: string | null;
+  lignes: LigneFiche[];
+  totaux: { du: string; paye: string; reste: string; mois_payes: number; nombre_mois: number };
 }
 
 export type StatutPresence = "PRESENT" | "ABSENT" | "RETARD";
@@ -252,6 +287,7 @@ export interface EleveListe {
   etudiant: number;
   inscription: number;
   matricule: string;
+  numero_inscription: string;
   nom_complet: string;
   statut: StatutPresence | null;
   observation: string;
@@ -263,6 +299,7 @@ export interface PresenceHistorique {
   etudiant: number;
   etudiant_nom: string;
   etudiant_matricule: string;
+  numero_inscription: string | null;
   date: string;
   heure_debut: string;
   heure_fin: string;
@@ -282,6 +319,7 @@ export interface NotificationWhatsApp {
   seance: number;
   etudiant_nom: string;
   etudiant_matricule: string;
+  numero_inscription: string | null;
   classe_nom: string;
   matiere_nom: string;
   date: string;
@@ -329,10 +367,77 @@ export interface Evaluation {
   resultats_valides: boolean;
 }
 
+/** Evaluation d'une colonne de la grille des notes (devoir, moyenne des interrogations, composition...). */
+export interface EvaluationGrille {
+  id: number;
+  libelle: string;
+  type: TypeEvaluation;
+  poids: string;
+  bareme: string;
+  nb_notes: number;
+}
+
+export interface CelluleNote { statut: StatutNote; valeur: string | null }
+
+export interface EleveGrille {
+  etudiant: number;
+  numero: number;
+  numero_inscription: string;
+  nom_complet: string;
+  /** Notes de l'eleve, par identifiant d'evaluation. */
+  notes: Record<string, CelluleNote>;
+}
+
+/** Grille de saisie d'une matiere pour un trimestre : N devoirs, moyenne des interrogations (x3) et composition. */
+export interface GrilleNotes {
+  annee_scolaire: number;
+  classe: number;
+  matiere: number;
+  trimestre: 1 | 2 | 3;
+  coefficient: string;
+  peut_modifier_coefficient: boolean;
+  resultats_valides: boolean;
+  regles: { abs_justifiee: string; abs_non_justifiee: string; exige_toutes_evaluations: boolean };
+  bareme_defaut: string;
+  max_devoirs: number;
+  composition_attendue: { libelle: string; poids: string };
+  /** `devoirs` : moyenne calculee ; `direct` : anciennes donnees, moyenne saisie directement. */
+  interrogations: (EvaluationGrille & { mode: "devoirs" | "direct" }) | null;
+  devoirs: (EvaluationGrille & { ordre: number })[];
+  composition: EvaluationGrille | null;
+  /** Anciennes evaluations hors modele, toujours saisissables. */
+  autres: EvaluationGrille[];
+  eleves: EleveGrille[];
+}
+
+export interface LigneResultatMatiere {
+  etudiant: number;
+  numero: number;
+  numero_inscription: string;
+  nom_complet: string;
+  interrogations: CelluleNote | null;
+  composition: CelluleNote | null;
+  /** Moyenne de la matiere pour le trimestre choisi (/20) et son rang dans la classe. */
+  moyenne: string | null;
+  rang: number | null;
+  moyennes: Record<string, string | null>;
+  moyenne_annuelle: string | null;
+}
+
+/** Resultat d'une matiere : trimestre choisi, moyennes des trois trimestres et moyenne annuelle. */
+export interface ResultatMatiere {
+  trimestre: 1 | 2 | 3;
+  interrogations: EvaluationGrille | null;
+  composition: EvaluationGrille | null;
+  poids_trimestres: string[];
+  eleves: LigneResultatMatiere[];
+}
+
 export interface EleveNote {
   numero: number;
   etudiant: number;
   matricule: string;
+  numero_inscription: string;
   nom_complet: string;
   statut: StatutNote;
   valeur: string | null;
@@ -356,6 +461,7 @@ export interface DetailMatiere {
 export interface LigneResultat {
   etudiant: number;
   matricule: string;
+  numero_inscription: string;
   nom_complet: string;
   matieres: Record<string, DetailMatiere>;
   total_points: string;
@@ -402,6 +508,8 @@ export interface ConfigurationHoraires {
   max_creneaux_consecutifs_professeur: number;
   /** False : la salle n'est pas une contrainte (plusieurs cours possibles en meme temps), mais reste attribuee. */
   considerer_salles: boolean;
+  /** True : un professeur n'a jamais deux seances qui s'enchainent avec la meme classe. */
+  seances_successives_interdites: boolean;
 }
 
 export interface DisponibiliteProfesseur {
@@ -411,8 +519,38 @@ export interface DisponibiliteProfesseur {
   jour: number;
   heure_debut: string;
   heure_fin: string;
-  type: "INDISPONIBLE" | "PREFERE";
+  /** DISPONIBLE : le professeur n'enseigne que dans ses creneaux disponibles. */
+  type: "DISPONIBLE" | "INDISPONIBLE" | "PREFERE";
   commentaire: string;
+}
+
+/** Creneau de disponibilite saisi dans l'assistant de creation d'un emploi du temps (jour : 0 = lundi). */
+export interface CreneauDisponible {
+  jour: number;
+  debut: string;
+  fin: string;
+}
+
+export interface ProfesseurAssistant {
+  id: number;
+  nom: string;
+  specialite: string;
+  disponibilites: CreneauDisponible[];
+}
+
+export interface MatiereAssistant {
+  id: number;
+  nom: string;
+}
+
+/** Donnees de l'assistant de creation pour une classe : matieres de la classe, professeurs et affectations existantes. */
+export interface DonneesAssistant {
+  classe: { id: number; nom: string; annee_scolaire: number; annee_libelle: string };
+  nom_propose: string;
+  matieres: MatiereAssistant[];
+  professeurs: ProfesseurAssistant[];
+  initial: { professeur: number; matieres: { matiere: number; heures: number }[] }[];
+  cadre: { jours: number[]; debut: string; fin: string; duree_creneau: number; pauses: { debut: string; fin: string }[] };
 }
 
 export interface IndisponibiliteSalle {
@@ -445,6 +583,9 @@ export interface EmploiDuTemps {
   id: number;
   annee_scolaire: number;
   annee_scolaire_libelle: string;
+  /** Classe de l'emploi du temps (vide pour un emploi qui couvre plusieurs classes). */
+  classe: number | null;
+  classe_nom: string | null;
   nom: string;
   statut: StatutEmploi;
   origine: "MANUEL" | "GENETIQUE";

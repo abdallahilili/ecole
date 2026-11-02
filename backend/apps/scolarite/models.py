@@ -41,7 +41,7 @@ class GrilleFrais(models.Model):
     )
     montant_mensuel = models.DecimalField(max_digits=10, decimal_places=2, db_column="montant_mensuel")
     frais_inscription = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_column="frais_inscription")
-    nombre_mois = models.IntegerField(default=9, db_column="nombre_mois")
+    nombre_mois = models.IntegerField(default=10, db_column="nombre_mois")   # octobre -> juillet
     actif = models.BooleanField(default=True, db_column="actif")   # False : plus utilise (masque des listes par defaut)
 
     class Meta:
@@ -52,6 +52,29 @@ class GrilleFrais(models.Model):
 
     def __str__(self):
         return f"{self.niveau} - {self.annee_scolaire} ({self.montant_mensuel}/mois)"
+
+
+class EcheanceScolarite(models.Model):
+    """Mois a payer sur la fiche de paiement d'un eleve (octobre -> juin, cree avec l'inscription).
+
+    L'etat (non paye / partiel / paye) n'est pas stocke : il se deduit des paiements de mensualite du mois dans le
+    registre immuable (PaiementScolarite), donc la fiche et la page « Paiements de scolarite » restent toujours d'accord."""
+
+    inscription = models.ForeignKey(
+        Inscription, on_delete=models.CASCADE, db_column="id_inscription", related_name="echeances"
+    )
+    mois = models.DateField(help_text="Premier jour du mois.", db_column="mois")
+    montant = models.DecimalField(max_digits=10, decimal_places=2, db_column="montant")
+
+    class Meta:
+        db_table = "echeance_scolarite"
+        unique_together = [("inscription", "mois")]
+        ordering = ["inscription_id", "mois"]
+        verbose_name = "Echeance de scolarite"
+        verbose_name_plural = "Echeances de scolarite"
+
+    def __str__(self):
+        return f"{self.inscription} - {self.mois:%m/%Y} - {self.montant}"
 
 
 class PaiementScolarite(ModeleImmuable):

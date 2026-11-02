@@ -1,12 +1,12 @@
 from rest_framework import serializers
 
-from apps.commun.constantes import Role
+from decimal import Decimal
+
 from apps.commun.exceptions import ErreurMetier
 from apps.etudiants.models import Inscription
-from apps.professeurs.models import AffectationProfesseur
 from apps.referentiels.models import AffectationMatiereClasse
-from . import services
-from .models import Evaluation
+from . import grille, services
+from .models import Evaluation, TypeEvaluation
 
 
 class EvaluationSerializer(serializers.ModelSerializer):
@@ -20,7 +20,7 @@ class EvaluationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Evaluation
         fields = "__all__"
-        read_only_fields = ["cree_par", "cree_le"]
+        read_only_fields = ["cree_par", "cree_le", "parent"]
 
     def get_nb_eleves(self, obj):
         # Annotation de la vue (une seule requete pour la liste) ; requete directe sinon.
@@ -75,10 +75,14 @@ class EvaluationSerializer(serializers.ModelSerializer):
         if instance and "bareme" in donnees and donnees["bareme"] != instance.bareme and instance.notes.exists():
             raise ErreurMetier("Le bareme ne peut plus etre modifie : des notes sont deja saisies.")
 
-        if utilisateur.role == Role.PROFESSEUR:
-            fiche = utilisateur.professeur
-            if fiche is None or not AffectationProfesseur.objects.filter(
-                professeur=fiche, matiere=matiere, classe=classe, annee_scolaire=annee
+        services.verifier_droits_saisie(utilisateur, annee, classe, matiere)
+
+        # Une seule composition par trimestre, au libelle et au poids imposes (1ere x1, 2e x2, 3e x3).
+        if val("type") == TypeEvaluation.EXAMEN and (instance is None or instance.type != TypeEvaluation.EXAMEN):
+            if Evaluation.objects.filter(
+                classe=classe, matiere=matiere, trimestre=trimestre, type=TypeEvaluation.EXAMEN, parent__isnull=True,
             ).exists():
-                raise ErreurMetier("Vous n'etes pas affecte a cette matiere pour cette classe.")
+                raise ErreurMetier("Il ne peut y avoir qu'une composition par trimestre.")
+            donnees["libelle"] = grille.LIBELLES_COMPOSITION[trimestre]
+            donnees["poids"] = Decimal(trimestre)
         return donnees

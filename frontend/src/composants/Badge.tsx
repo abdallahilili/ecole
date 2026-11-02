@@ -24,6 +24,9 @@ const COULEURS: Record<string, string> = {
   ENVOYE: "bg-blue-50 text-accent-bleu",
   LIVRE: "bg-green-50 text-accent-vert",
   ECHEC: "bg-red-50 text-accent-rouge",
+  PAYE: "bg-green-50 text-accent-vert",
+  PARTIEL: "bg-amber-50 text-amber-700",
+  NON_PAYE: "bg-red-50 text-accent-rouge",
 };
 import { tr } from "../i18n";
 
@@ -53,6 +56,9 @@ const LIBELLES: Record<string, string> = {
   ENVOYE: tr("Envoye"),
   LIVRE: tr("Livre"),
   ECHEC: tr("Echec"),
+  PAYE: tr("Paye"),
+  PARTIEL: tr("Partiel"),
+  NON_PAYE: tr("Non paye"),
 };
 
 export function Badge({ statut }: { statut: string }) {

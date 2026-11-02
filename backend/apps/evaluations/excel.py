@@ -14,7 +14,7 @@ from apps.commun.audit import enregistrer_audit
 from apps.commun.exceptions import ErreurMetier
 from apps.commun.excel import lire_classeur, orienter_feuille, texte
 from apps.commun.traduction import traduire
-from apps.etudiants.models import Etudiant
+from apps.etudiants.models import Inscription
 from apps.etudiants.services import eleves_classe
 from . import services
 from .calculs import en_texte
@@ -58,14 +58,14 @@ def xlsx_modele_notes(evaluation, lignes):
         "Note : nombre (virgule ou point). A = absent, AJ = absent justifie, NA = non applicable. "
         "Laisser vide = pas de note. Ne pas modifier les lignes 1 a 6."
     )).font = Font(italic=True)
-    for index, titre in enumerate(["N°", "Matricule", "Nom complet", "Note / statut"], start=1):
+    for index, titre in enumerate(["N°", "N° d'inscription", "Nom complet", "Note / statut"], start=1):
         cellule = feuille.cell(row=LIGNE_ENTETE, column=index, value=traduire(titre))
         cellule.font = Font(bold=True)
         cellule.fill = ENTETE_FOND
     for decalage, ligne in enumerate(lignes):
         rang = PREMIERE_LIGNE + decalage
         feuille.cell(row=rang, column=1, value=ligne["numero"])
-        feuille.cell(row=rang, column=2, value=ligne["matricule"])
+        feuille.cell(row=rang, column=2, value=ligne["numero_inscription"])
         feuille.cell(row=rang, column=3, value=ligne["nom_complet"])
         if ligne["statut"] == StatutNote.SAISIE:
             feuille.cell(row=rang, column=4, value=float(ligne["valeur"]))
@@ -87,7 +87,7 @@ def lire_cellule_note(brut):
     return StatutNote.SAISIE, texte(brut)
 
 
-def _matricule(valeur):
+def _numero(valeur):
     if isinstance(valeur, float) and valeur.is_integer():
         valeur = int(valeur)
     return texte(valeur)
@@ -113,9 +113,13 @@ def verifier_metadonnees(feuille, evaluation):
 
 def analyser_import(fichier, evaluation):
     feuille = lire_classeur(fichier).active
-    inscriptions = {i.etudiant.matricule: i for i in eleves_classe(evaluation.classe_id, evaluation.annee_scolaire_id)}
+    inscriptions = {i.numero_inscription: i for i in eleves_classe(evaluation.classe_id, evaluation.annee_scolaire_id)}
     existantes = {n.etudiant_id: n for n in evaluation.notes.all()}
-    autres = set(Etudiant.objects.exclude(matricule__in=list(inscriptions)).values_list("matricule", flat=True))
+    # Numeros d'inscription de l'annee qui ne sont pas dans cette classe (autre classe, ou eleve parti).
+    autres = set(
+        Inscription.objects.filter(annee_scolaire_id=evaluation.annee_scolaire_id).exclude(numero_inscription__in=list(inscriptions))
+        .values_list("numero_inscription", flat=True)
+    )
     resultat = {
         "anomalies_fichier": verifier_metadonnees(feuille, evaluation), "lignes": [],
         "resultats_valides": services.resultats_valides(evaluation.classe, evaluation.trimestre),
@@ -125,16 +129,16 @@ def analyser_import(fichier, evaluation):
         ligne = tuple(ligne) + (None,) * (4 - len(ligne))
         if all(v in (None, "") for v in ligne[1:]):
             continue
-        matricule = _matricule(ligne[1])
+        numero_inscription = _numero(ligne[1])
         anomalies, statut, valeur = [], None, None
-        inscription = inscriptions.get(matricule)
-        if not matricule:
-            anomalies.append("matricule manquant (ligne incomplete)")
+        inscription = inscriptions.get(numero_inscription)
+        if not numero_inscription:
+            anomalies.append("numero d'inscription manquant (ligne incomplete)")
         elif inscription is None:
-            anomalies.append("etudiant hors de cette classe" if matricule in autres else "matricule inconnu")
-        elif matricule in vus:
-            anomalies.append("matricule en double dans le fichier")
-        vus.add(matricule)
+            anomalies.append("etudiant hors de cette classe" if numero_inscription in autres else "numero d'inscription inconnu")
+        elif numero_inscription in vus:
+            anomalies.append("numero d'inscription en double dans le fichier")
+        vus.add(numero_inscription)
         statut_lu, brut = lire_cellule_note(ligne[3])
         if statut_lu is None:
             etat_ligne = "VIDE"
@@ -145,7 +149,7 @@ def analyser_import(fichier, evaluation):
                 anomalies.append(e.message)
             etat_ligne = "NOTE"
         entree = {
-            "ligne": numero, "matricule": matricule,
+            "ligne": numero, "numero_inscription": numero_inscription,
             "nom_complet": inscription.etudiant.nom_complet if inscription else texte(ligne[2]),
             "statut": statut, "valeur": None if valeur is None else str(valeur), "anomalies": anomalies,
             "etudiant": inscription.etudiant_id if inscription else None, "ancienne": None,
@@ -221,7 +225,7 @@ def xlsx_classement(donnees):
     feuille["A1"].font = Font(bold=True, size=12)
     feuille.append([traduire("Resultats valides" if donnees["validee"] else "Resultats PROVISOIRES (non valides)")])
     feuille.append([])
-    entete = ["Rang", "Matricule", "Nom complet"] + [m["nom"] for m in donnees["matieres"]]
+    entete = ["Rang", "N° d'appel", "Nom complet"] + [m["nom"] for m in donnees["matieres"]]
     entete += (["T1", "T2", "T3"] if annuel else []) + ["Total", "Moyenne generale", "Decision", "Remarque"]
     entete = [traduire(h) for h in entete]
     feuille.append(entete)
@@ -231,7 +235,7 @@ def xlsx_classement(donnees):
         cellule.font = Font(bold=True)
         cellule.fill = ENTETE_FOND
     for eleve in sorted(donnees["etudiants"], key=lambda e: (e["rang"] is None, e["rang"] or 0, e["nom_complet"])):
-        ligne = [eleve["rang"], eleve["matricule"], eleve["nom_complet"]]
+        ligne = [eleve["rang"], eleve["numero_inscription"], eleve["nom_complet"]]
         for matiere in donnees["matieres"]:
             moyenne = eleve["matieres"][matiere["id"]]["moyenne"]
             ligne.append(float(moyenne.quantize(Decimal("0.01"))) if moyenne is not None else None)

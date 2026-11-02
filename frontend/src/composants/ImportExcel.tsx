@@ -10,7 +10,7 @@ import { BOUTON, BOUTON_PRIMAIRE, CHAMP } from "./styles";
 import { tr } from "../i18n";
 export interface LigneApercu {
   ligne: number;
-  matricule: string;
+  numero_inscription: string;
   nom_complet: string;
   etat: "NOUVEAU" | "IDENTIQUE" | "MODIFIE" | "ERREUR" | "VIDE";
   anomalies: string[];
@@ -201,7 +201,7 @@ export function ImportExcel<L extends LigneApercu>({
               <thead>
                 <tr className="bg-fond-barre text-start text-texte-attenue">
                   <th className="px-2 py-1.5">{tr("Ligne")}</th>
-                  <th className="px-2 py-1.5">{tr("Matricule")}</th>
+                  <th className="px-2 py-1.5">{tr("N° d'inscription")}</th>
                   <th className="px-2 py-1.5">{tr("Nom")}</th>
                   <th className="px-2 py-1.5">{titreValeur}</th>
                   <th className="px-2 py-1.5">{tr("Etat")}</th>
@@ -212,7 +212,7 @@ export function ImportExcel<L extends LigneApercu>({
                 {apercu.lignes.map((l) => (
                   <tr key={l.ligne} className="border-t border-bordure">
                     <td className="px-2 py-1.5">{l.ligne}</td>
-                    <td className="px-2 py-1.5">{l.matricule}</td>
+                    <td className="px-2 py-1.5">{l.numero_inscription}</td>
                     <td className="px-2 py-1.5">{l.nom_complet}</td>
                     <td className="px-2 py-1.5">{rendreValeur(l)}</td>
                     <td className={`px-2 py-1.5 font-medium ${COULEUR_ETAT[l.etat]}`}>{ETATS[l.etat] ?? l.etat}</td>

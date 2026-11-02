@@ -204,7 +204,7 @@ class DocumentsArabesTests(DonneesBilingues):
         feuille = classeur.active
         self.assertTrue(feuille.sheet_view.rightToLeft)
         textes = [str(c.value) for ligne in feuille.iter_rows() for c in ligne if c.value]
-        self.assertTrue(any("الرقم المدرسي" in t for t in textes), textes[:20])
+        self.assertTrue(any("رقم التسجيل" in t for t in textes), textes[:20])
         francais = openpyxl.load_workbook(io.BytesIO(self.api("fr").get(f"/api/presences/seances/{self.seance.id}/excel/").content)).active
         self.assertFalse(bool(francais.sheet_view.rightToLeft))
 

@@ -451,12 +451,17 @@ class ImportExcelTests(BasePresences):
         classeur.save(tampon)
         return SimpleUploadedFile("presences.xlsx", tampon.getvalue())
 
+    def numero(self, matricule):
+        """Le fichier identifie les eleves par leur numero d'inscription."""
+        return Inscription.objects.get(etudiant__matricule=matricule).numero_inscription
+
     def remplir(self, classeur, statuts):
         """statuts : {matricule: valeur}"""
+        cibles = {self.numero(matricule): valeur for matricule, valeur in statuts.items()}
         feuille = classeur.active
         for ligne in feuille.iter_rows(min_row=9):
-            if ligne[1].value in statuts:
-                ligne[3].value = statuts[ligne[1].value]
+            if ligne[1].value in cibles:
+                ligne[3].value = cibles[ligne[1].value]
         return classeur
 
     def envoyer(self, classeur, **extra):
@@ -466,8 +471,8 @@ class ImportExcelTests(BasePresences):
         feuille = self.modele().active
         self.assertEqual(feuille["B2"].value, "6AF")
         self.assertEqual(feuille["B3"].value, "MATH")
-        matricules = {ligne[1].value for ligne in feuille.iter_rows(min_row=9) if ligne[1].value}
-        self.assertEqual(matricules, {"E1", "E2", "E3"})
+        numeros = {ligne[1].value for ligne in feuille.iter_rows(min_row=9) if ligne[1].value}
+        self.assertEqual(numeros, {self.numero("E1"), self.numero("E2"), self.numero("E3")})
 
     def test_apercu_n_ecrit_rien_puis_confirmation_enregistre(self):
         classeur = self.remplir(self.modele(), {"E1": "A", "E2": "P", "E3": "r"})
@@ -487,17 +492,17 @@ class ImportExcelTests(BasePresences):
     def test_anomalies_detectees_et_rien_enregistre(self):
         classeur = self.remplir(self.modele(), {"E1": "A", "E2": "Z", "E3": None})
         feuille = classeur.active
-        feuille.append([None, "E9", "Sow Ali", "P", None])      # etudiant d'une autre classe
-        feuille.append([None, "XXXX", "Inconnu", "P", None])    # matricule inconnu
-        feuille.append([None, "E1", "Diallo Awa", "A", None])   # doublon
+        feuille.append([None, self.numero("E9"), "Sow Ali", "P", None])      # etudiant d'une autre classe
+        feuille.append([None, "XXXX", "Inconnu", "P", None])    # numero d'inscription inconnu
+        feuille.append([None, self.numero("E1"), "Diallo Awa", "A", None])   # doublon
         resultat = self.envoyer(classeur, confirmer="true")
         self.assertEqual(resultat.status_code, 400)
-        anomalies = {l["matricule"]: " ".join(l["anomalies"]) for l in resultat.json()["lignes"] if l["anomalies"]}
-        self.assertIn("statut invalide", anomalies["E2"])
-        self.assertIn("statut manquant", anomalies["E3"])
-        self.assertIn("hors de cette classe", anomalies["E9"])
+        anomalies = {l["numero_inscription"]: " ".join(l["anomalies"]) for l in resultat.json()["lignes"] if l["anomalies"]}
+        self.assertIn("statut invalide", anomalies[self.numero("E2")])
+        self.assertIn("statut manquant", anomalies[self.numero("E3")])
+        self.assertIn("hors de cette classe", anomalies[self.numero("E9")])
         self.assertIn("inconnu", anomalies["XXXX"])
-        self.assertIn("double", anomalies["E1"])
+        self.assertIn("double", anomalies[self.numero("E1")])
         self.assertEqual(PresenceEtudiant.objects.count(), 0)
 
     def test_fichier_d_un_autre_cours_refuse(self):

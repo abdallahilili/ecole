@@ -5,7 +5,7 @@ de la base (aucun chiffre fictif). Chaque section est une fonction independante 
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Sum
+from django.db.models import Count, Exists, F, IntegerField, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -49,6 +49,10 @@ def _effectif_classe():
     return Inscription.objects.filter(
         classe_id=OuterRef("classe_id"), annee_scolaire_id=OuterRef("annee_scolaire_id"), statut="ACTIVE",
     ).order_by().values("classe_id").annotate(n=Count("pk")).values("n")
+
+
+def _devoirs_de_levaluation():
+    return Evaluation.objects.filter(parent_id=OuterRef("pk"))
 
 
 # ----------------------------------------------------------------- sections
@@ -145,10 +149,11 @@ def remuneration_section(contexte):
 def scolarite_section(contexte):
     jour = contexte["aujourdhui"]
     paiements = PaiementScolarite.objects.filter(date_paiement__range=(remuneration.premier_du_mois(jour), remuneration.dernier_du_mois(jour)))
-    total = paiements.aggregate(t=Coalesce(Sum("montant"), Decimal("0")))["t"]
-    derniers = PaiementScolarite.objects.select_related("inscription__etudiant", "inscription__classe").order_by("-date_paiement", "-id")[:5]
+    total = paiements.aggregate(t=Coalesce(Sum("montant"), Decimal("0")))["t"]   # net : les annulations (montants negatifs) sont deduites
+    derniers = PaiementScolarite.objects.select_related("inscription__etudiant", "inscription__classe").filter(
+        montant__gt=0).order_by("-date_paiement", "-id")[:5]
     return {
-        "encaisse_mois": _texte(total), "nombre_paiements_mois": paiements.count(),
+        "encaisse_mois": _texte(total), "nombre_paiements_mois": paiements.filter(montant__gt=0).count(),
         "derniers_paiements": [{
             "reference": p.reference, "etudiant": p.inscription.etudiant.nom_complet, "classe": p.inscription.classe.nom,
             "montant": _texte(p.montant), "date": p.date_paiement.isoformat(),
@@ -158,12 +163,13 @@ def scolarite_section(contexte):
 
 def emploi_du_temps_section(contexte):
     annee = contexte["annee"]
-    publie = EmploiDuTemps.objects.filter(annee_scolaire=annee, statut=StatutEmploi.PUBLIE).first() if annee else None
+    publies = EmploiDuTemps.objects.filter(annee_scolaire=annee, statut=StatutEmploi.PUBLIE) if annee else EmploiDuTemps.objects.none()
+    publie = publies.order_by("-publie_le", "-id").first()       # un emploi publie par classe : le plus recent represente les autres
     dernier_brouillon = EmploiDuTemps.objects.filter(annee_scolaire=annee, statut=StatutEmploi.BROUILLON).order_by("-cree_le").first() if annee else None
     rapport = dernier_brouillon.rapport if dernier_brouillon and dernier_brouillon.rapport else {}
     return {
         "publie": {"id": publie.pk, "nom": publie.nom, "publie_le": publie.publie_le.isoformat() if publie.publie_le else None,
-                   "seances": publie.seances.count()} if publie else None,
+                   "nombre": publies.count(), "seances": SeanceProgrammee.objects.filter(emploi__in=publies).count()} if publie else None,
         "brouillons": EmploiDuTemps.objects.filter(annee_scolaire=annee, statut=StatutEmploi.BROUILLON).count() if annee else 0,
         "derniere_generation": {"id": dernier_brouillon.pk, "nom": dernier_brouillon.nom, "publiable": rapport.get("publiable"),
                                 "conflits": len(rapport.get("conflits", []))} if dernier_brouillon and rapport else None,
@@ -175,7 +181,8 @@ def evaluations_section(contexte):
     if annee is None:
         return {"prochaines": [], "notes_manquantes": [], "resultats_a_valider": [], "bulletins_prets": 0, "trimestre": 1}
     trimestre = trimestre_courant(annee, jour)
-    base = Evaluation.objects.filter(annee_scolaire=annee).select_related("classe", "matiere")
+    # La « Moy. interrogations » calculee a partir de devoirs n'est pas saisie : seuls ses devoirs le sont.
+    base = Evaluation.objects.filter(annee_scolaire=annee).filter(~Exists(_devoirs_de_levaluation())).select_related("classe", "matiere")
     prochaines = base.filter(date__gte=jour).order_by("date", "id")[:5]
     # Evaluations deja passees dont certaines notes sont encore a saisir (au moins un eleve sans note).
     manquantes = list(
@@ -207,9 +214,11 @@ def mon_espace(contexte):
     mes = Q(professeur_id=fiche) | Q(professeur_remplacant_id=fiche)
 
     prochains = []
-    publie = EmploiDuTemps.objects.filter(annee_scolaire=annee, statut=StatutEmploi.PUBLIE).first() if annee else None
-    if publie:
-        programmees = list(SeanceProgrammee.objects.filter(emploi=publie, professeur_id=fiche).select_related("classe", "matiere", "salle"))
+    # Tous les emplois publies de l'annee (un par classe) : un professeur enseigne souvent dans plusieurs classes.
+    programmees = list(SeanceProgrammee.objects.filter(
+        emploi__annee_scolaire=annee, emploi__statut=StatutEmploi.PUBLIE, professeur_id=fiche,
+    ).select_related("classe", "matiere", "salle")) if annee else []
+    if programmees:
         for decalage in range(8):
             date_ = jour + timedelta(days=decalage)
             for s in (p for p in programmees if p.jour == date_.weekday()):
@@ -226,7 +235,8 @@ def mon_espace(contexte):
     affectations = AffectationProfesseur.objects.filter(professeur_id=fiche, annee_scolaire=annee).select_related("classe", "matiere") if annee else []
     mes_evaluations = []
     if annee:
-        a_completer = Evaluation.objects.filter(annee_scolaire=annee, trimestre=trimestre_courant(annee, jour)).annotate(
+        a_completer = Evaluation.objects.filter(annee_scolaire=annee, trimestre=trimestre_courant(annee, jour)).filter(
+            ~Exists(_devoirs_de_levaluation())).annotate(
             nb_notes=Count("notes"), effectif=Coalesce(Subquery(_effectif_classe(), output_field=IntegerField()), 0),
         ).filter(nb_notes__lt=F("effectif")).select_related("classe", "matiere")
         mes_evaluations = [

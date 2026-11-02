@@ -13,7 +13,7 @@ from django.db import transaction
 
 from apps.commun.audit import enregistrer_audit
 from apps.commun.excel import lire_classeur, texte
-from apps.etudiants.models import Etudiant
+from apps.etudiants.models import Inscription
 from .exports import (
     CODES_STATUT, LIGNE_ENTETE_IMPORT, META_ANNEE, META_CLASSE, META_DATE, META_DEBUT, META_FIN,
     META_MATIERE, PREMIERE_LIGNE_IMPORT,
@@ -36,7 +36,7 @@ def lire_statut(valeur):
     return SYNONYMES_STATUT.get(_sans_accent(texte(valeur)).upper())
 
 
-def _matricule(valeur):
+def _numero(valeur):
     if isinstance(valeur, float) and valeur.is_integer():
         valeur = int(valeur)
     return texte(valeur)
@@ -91,9 +91,13 @@ def verifier_metadonnees(feuille, cours):
 def analyser_import(fichier, cours, seance=None):
     """Analyse sans rien ecrire. `seance` : seance existante (ou None)."""
     feuille = lire_classeur(fichier).active
-    inscriptions = {i.etudiant.matricule: i for i in eleves_classe(cours["classe"].id, cours["annee_scolaire"].id)}
+    inscriptions = {i.numero_inscription: i for i in eleves_classe(cours["classe"].id, cours["annee_scolaire"].id)}
     existantes = {p.etudiant_id: p for p in seance.presences.all()} if seance else {}
-    autres_matricules = set(Etudiant.objects.exclude(matricule__in=list(inscriptions)).values_list("matricule", flat=True))
+    # Numeros d'inscription de l'annee qui ne sont pas dans cette classe (autre classe, ou eleve parti).
+    autres_numeros = set(
+        Inscription.objects.filter(annee_scolaire=cours["annee_scolaire"]).exclude(numero_inscription__in=list(inscriptions))
+        .values_list("numero_inscription", flat=True)
+    )
 
     resultat = {
         "anomalies_fichier": verifier_metadonnees(feuille, cours),
@@ -106,18 +110,18 @@ def analyser_import(fichier, cours, seance=None):
         ligne = tuple(ligne) + (None,) * (5 - len(ligne))
         if all(valeur in (None, "") for valeur in ligne[1:]):
             continue
-        matricule, statut_brut, observation = _matricule(ligne[1]), ligne[3], texte(ligne[4])[:255]
+        numero_inscription, statut_brut, observation = _numero(ligne[1]), ligne[3], texte(ligne[4])[:255]
         anomalies = []
-        inscription = inscriptions.get(matricule)
-        if not matricule:
-            anomalies.append("matricule manquant (ligne incomplete)")
+        inscription = inscriptions.get(numero_inscription)
+        if not numero_inscription:
+            anomalies.append("numero d'inscription manquant (ligne incomplete)")
         elif inscription is None:
             anomalies.append(
-                "etudiant hors de cette classe" if matricule in autres_matricules else "matricule inconnu"
+                "etudiant hors de cette classe" if numero_inscription in autres_numeros else "numero d'inscription inconnu"
             )
-        elif matricule in vus:
-            anomalies.append("matricule en double dans le fichier")
-        vus.add(matricule)
+        elif numero_inscription in vus:
+            anomalies.append("numero d'inscription en double dans le fichier")
+        vus.add(numero_inscription)
         statut = lire_statut(statut_brut)
         if not texte(statut_brut):
             anomalies.append("statut manquant (ligne incomplete)")
@@ -125,7 +129,7 @@ def analyser_import(fichier, cours, seance=None):
             anomalies.append(f"statut invalide '{texte(statut_brut)}' (attendu P, A ou R)")
 
         entree = {
-            "ligne": numero, "matricule": matricule,
+            "ligne": numero, "numero_inscription": numero_inscription,
             "nom_complet": inscription.etudiant.nom_complet if inscription else texte(ligne[2]),
             "statut": statut, "observation": observation, "anomalies": anomalies,
             "etudiant": inscription.etudiant_id if inscription else None, "ancien_statut": None,

@@ -45,6 +45,14 @@ def _bool(valeur):
     return str(valeur).strip().lower() in VRAI
 
 
+def _numero_inscription(chemin_etudiant, chemin_annee):
+    """Numero d'inscription de l'eleve dans l'annee de la seance (sous-requete a annoter sur une liste de presences)."""
+    return Subquery(
+        Inscription.objects.filter(etudiant=OuterRef(chemin_etudiant), annee_scolaire=OuterRef(chemin_annee))
+        .values("numero_inscription")[:1]
+    )
+
+
 def _filtrer_dates(qs, params, champ):
     if params.get("du"):
         qs = qs.filter(**{f"{champ}__gte": params["du"]})
@@ -208,12 +216,12 @@ class SeanceViewSet(ViewSetGestion):
 
     @action(detail=False, methods=["get"], url_path="modele-classe")
     def modele_classe(self, request):
-        """Registre de presence mensuel d'une classe (noms des eleves + colonnes des jours) : ?classe=<id>&fichier=pdf|xlsx"""
+        """Feuille de presence d'une seance d'une classe (matricule + nom des eleves, date/heure/matiere/professeur a remplir) : ?classe=<id>&fichier=pdf|xlsx"""
         classe = Classe.objects.select_related("annee_scolaire").filter(pk=request.query_params.get("classe") or 0).first()
         if classe is None:
             raise ErreurMetier("Classe introuvable.")
         contexte = exports.contexte_classe(classe)
-        nom = f"registre_presence_{classe.nom}"
+        nom = f"modele_presence_{classe.nom}"
         format_ = request.query_params.get("fichier", "pdf")
         if format_ == "xlsx":
             return reponse_xlsx(exports.xlsx_modele_classe(contexte), f"{nom}.xlsx")
@@ -277,6 +285,7 @@ class HistoriquePresencesViewSet(ViewSetLecture):
     def get_queryset(self):
         qs = PresenceEtudiant.objects.select_related(
             "etudiant", "seance__classe", "seance__matiere", "seance__professeur", "notification"
+        ).annotate(numero_inscription=_numero_inscription("etudiant", "seance__annee_scolaire")
         ).order_by("-seance__date", "-seance__heure_debut", "etudiant__nom")
         utilisateur = self.request.user
         if utilisateur.role == Role.PROFESSEUR:
@@ -293,7 +302,7 @@ class HistoriquePresencesViewSet(ViewSetLecture):
             qs = qs.filter(seance__professeur_id=params["professeur"])
         if params.get("recherche"):
             qs = qs.filter(Q(etudiant__nom__icontains=params["recherche"]) | Q(etudiant__prenom__icontains=params["recherche"])
-                           | Q(etudiant__matricule__icontains=params["recherche"]))
+                           | Q(numero_inscription__icontains=params["recherche"]))
         return _filtrer_dates(qs, params, "seance__date")
 
 
@@ -306,7 +315,7 @@ class NotificationViewSet(ViewSetLecture):
     def get_queryset(self):
         qs = NotificationWhatsApp.objects.select_related(
             "presence__etudiant", "presence__seance__classe", "presence__seance__matiere"
-        )
+        ).annotate(numero_inscription=_numero_inscription("presence__etudiant", "presence__seance__annee_scolaire"))
         params = self.request.query_params
         for parametre, champ in (
             ("statut", "statut"), ("canal", "canal"), ("seance", "presence__seance_id"),
@@ -317,7 +326,7 @@ class NotificationViewSet(ViewSetLecture):
         if params.get("recherche"):
             qs = qs.filter(Q(presence__etudiant__nom__icontains=params["recherche"])
                            | Q(presence__etudiant__prenom__icontains=params["recherche"])
-                           | Q(presence__etudiant__matricule__icontains=params["recherche"]))
+                           | Q(numero_inscription__icontains=params["recherche"]))
         return _filtrer_dates(qs, params, "presence__seance__date")
 
     @action(detail=False, methods=["get"])

@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import FileResponse, Http404
 
+from .audit import enregistrer_audit
 from .exceptions import ErreurMetier
 from .models import Parametre, JournalAudit
 from .parametres import DEFAUTS, chemin_logo_televerse
@@ -37,9 +38,17 @@ class ParametresView(APIView):
             raise ErreurMetier(f"Parametre(s) inconnu(s) : {', '.join(inconnus)}.")
         if any(len(str(valeur)) > 255 for valeur in request.data.values()):
             raise ErreurMetier("Une valeur depasse 255 caracteres.")
+        from apps.scolarite import services as services_scolarite   # import tardif : commun ne depend pas de scolarite au chargement
+        avant = services_scolarite.annee_dix_mois()
         with transaction.atomic():
             for cle, valeur in request.data.items():
                 Parametre.objects.update_or_create(cle=cle, defaults={"valeur": str(valeur)})
+            if services_scolarite.annee_dix_mois() != avant:   # juillet ajoute ou retire des fiches de l'annee en cours
+                services_scolarite.synchroniser_fiches_annee_active()
+                enregistrer_audit(
+                    request.user, "MODIFICATION", "Parametre", "annee_dix_mois",
+                    ancienne_valeur={"annee_dix_mois": avant}, nouvelle_valeur={"annee_dix_mois": not avant},
+                )
         return Response(_parametres_courants())
 
 

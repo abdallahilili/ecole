@@ -2,7 +2,8 @@ import axios from "axios";
 import { langue } from "../i18n";
 import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-const URL_BASE = (import.meta.env.VITE_URL_API as string) || "http://localhost:8000/api";
+// Par defaut /api (meme adresse que la page : relaye par Vite en developpement, par le serveur web en production).
+const URL_BASE = (import.meta.env.VITE_URL_API as string) || "/api";
 
 let jetonAcces: string | null = null;
 

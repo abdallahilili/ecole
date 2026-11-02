@@ -21,6 +21,7 @@ const PageRegistreEtudiants = page(() => import("../pages/etudiants/RegistreEtud
 const PageEtudiants = page(() => import("../pages/etudiants/Etudiants"), "PageEtudiants");
 const PageEtudiantsClasse = page(() => import("../pages/etudiants/Etudiants"), "PageEtudiantsClasse");
 const PageInscriptions = page(() => import("../pages/etudiants/Inscriptions"), "PageInscriptions");
+const PageFicheEtudiant = page(() => import("../pages/etudiants/FicheEtudiant"), "PageFicheEtudiant");
 const PageGrillesFrais = page(() => import("../pages/scolarite/GrillesFrais"), "PageGrillesFrais");
 const PagePaiementsScolarite = page(() => import("../pages/scolarite/PaiementsScolarite"), "PagePaiementsScolarite");
 const PageProfesseurs = page(() => import("../pages/professeurs/Professeurs"), "PageProfesseurs");
@@ -36,6 +37,7 @@ const PageResultats = page(() => import("../pages/evaluations/Resultats"), "Page
 const PageEmploisDuTemps = page(() => import("../pages/emploiDuTemps/EmploisDuTemps"), "PageEmploisDuTemps");
 const PageEditeurEmploi = page(() => import("../pages/emploiDuTemps/EditeurEmploi"), "PageEditeurEmploi");
 const PagePlanification = page(() => import("../pages/emploiDuTemps/Planification"), "PagePlanification");
+const PageAssistantEmploi = page(() => import("../pages/emploiDuTemps/AssistantEmploi"), "PageAssistantEmploi");
 const PageDisponibilites = page(() => import("../pages/emploiDuTemps/Disponibilites"), "PageDisponibilites");
 const PageRemuneration = page(() => import("../pages/remuneration/Remuneration"), "PageRemuneration");
 const PageReleveDetail = page(() => import("../pages/remuneration/ReleveDetail"), "PageReleveDetail");
@@ -60,6 +62,7 @@ export const routesProtegees: RouteProtegee[] = [
   { chemin: "/etudiants", module: "etudiants", element: <PageRegistreEtudiants /> },
   { chemin: "/etudiants/classe/:id", module: "etudiants", element: <PageEtudiantsClasse /> },
   { chemin: "/etudiants/tous", module: "etudiants", element: <PageEtudiants /> },
+  { chemin: "/etudiants/fiche/:id", module: "etudiants", element: <PageFicheEtudiant /> },
   { chemin: "/inscriptions", module: "etudiants", element: <PageInscriptions /> },
   { chemin: "/scolarite", module: "scolarite", element: <PagePaiementsScolarite /> },
   { chemin: "/scolarite/grilles-frais", module: "scolarite", element: <PageGrillesFrais /> },
@@ -72,6 +75,7 @@ export const routesProtegees: RouteProtegee[] = [
   { chemin: "/notes", module: "evaluations", element: <PageNotes /> },
   { chemin: "/resultats", module: "resultats", element: <PageResultats /> },
   { chemin: "/emplois-du-temps", module: "emplois_du_temps", element: <PageEmploisDuTemps /> },
+  { chemin: "/emplois-du-temps/nouveau", module: "planification", element: <PageAssistantEmploi /> },
   { chemin: "/emplois-du-temps/:id", module: "emplois_du_temps", element: <PageEditeurEmploi /> },
   { chemin: "/planification", module: "planification", element: <PagePlanification /> },
   { chemin: "/disponibilites", module: "disponibilites", element: <PageDisponibilites /> },

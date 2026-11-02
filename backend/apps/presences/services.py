@@ -44,6 +44,7 @@ def liste_appel(seance):
             "numero": numero,
             "etudiant": inscription.etudiant_id,
             "inscription": inscription.id,
+            "numero_inscription": inscription.numero_inscription,
             "matricule": inscription.etudiant.matricule,
             "nom_complet": inscription.etudiant.nom_complet,
             "statut": presence.statut if presence else None,

@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from django.db.models import Count
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -10,8 +11,8 @@ from apps.commun.excel import reponse_xlsx
 from apps.commun.exceptions import ErreurMetier
 from apps.commun.pdf import reponse_pdf
 from apps.commun.vues_base import ViewSetGestion
-from apps.referentiels.models import AnneeScolaire
-from . import exports, services
+from apps.referentiels.models import AnneeScolaire, Classe
+from . import creation, exports, services
 from .donnees import configuration_pour
 from .models import (
     ConfigurationHoraires, DisponibiliteProfesseur, EmploiDuTemps, IndisponibiliteSalle, SeanceProgrammee,
@@ -74,7 +75,7 @@ class EmploiDuTempsViewSet(ViewSetGestion):
     }
 
     def get_queryset(self):
-        qs = EmploiDuTemps.objects.select_related("annee_scolaire").annotate(nb_seances=Count("seances"))
+        qs = EmploiDuTemps.objects.select_related("annee_scolaire", "classe").annotate(nb_seances=Count("seances"))
         if self.request.user.role not in ROLES_GESTION:
             qs = qs.filter(statut=StatutEmploi.PUBLIE)       # personnel et professeurs : emploi publie uniquement
         params = self.request.query_params
@@ -99,6 +100,31 @@ class EmploiDuTempsViewSet(ViewSetGestion):
             # Un professeur ne consulte que sa propre grille (impose cote serveur).
             filtres = {"professeur": request.user.professeur_id or 0}
         return {c: v for c, v in filtres.items() if v}
+
+    @staticmethod
+    def _classe(identifiant):
+        try:
+            identifiant = int(identifiant)
+        except (TypeError, ValueError):
+            raise ErreurMetier("Parametre 'classe' obligatoire.")
+        return get_object_or_404(Classe.objects.select_related("annee_scolaire"), pk=identifiant)
+
+    @action(detail=False, methods=["get"])
+    def assistant(self, request):
+        """GET ?classe=ID : matieres de la classe, professeurs (avec leurs disponibilites) et affectations existantes."""
+        return Response(creation.donnees_assistant(self._classe(request.query_params.get("classe"))))
+
+    @action(detail=False, methods=["post"], url_path="creer-classe")
+    def creer_classe(self, request):
+        """{classe, nom?, professeurs: [{professeur, matieres: [{matiere, heures}], disponibilites: [{jour, debut, fin}]}]} :
+        cree l'emploi du temps de la classe (affectations et disponibilites enregistrees avec lui)."""
+        classe = self._classe(request.data.get("classe"))
+        graine = request.data.get("graine")
+        emploi = creation.creer(
+            classe, str(request.data.get("nom") or f"Emploi {classe.nom}")[:120], request.data.get("professeurs"), request.user,
+            graine=int(graine) if graine not in (None, "") else None, temps_max=request.data.get("temps_max", 20),
+        )
+        return Response(self.get_serializer(self.get_queryset().get(pk=emploi.pk)).data, status=201)
 
     @action(detail=False, methods=["post"])
     def generer(self, request):

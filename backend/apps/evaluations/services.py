@@ -8,7 +8,8 @@ from apps.commun.audit import enregistrer_audit
 from apps.commun.constantes import Role
 from apps.commun.exceptions import ErreurMetier
 from apps.etudiants.services import eleves_classe
-from . import resultats as moteur
+from apps.professeurs.models import AffectationProfesseur
+from . import calculs, resultats as moteur
 from .models import Appreciation, Decision, Note, StatutNote, ValidationResultats
 
 # Apres validation des resultats, seuls ces roles peuvent encore corriger une
@@ -19,6 +20,60 @@ STATUTS_VALIDES = tuple(code for code, _ in StatutNote.CHOIX)
 
 def resultats_valides(classe, trimestre):
     return ValidationResultats.objects.filter(classe=classe, trimestre=trimestre).exists()
+
+
+def verifier_droits_saisie(utilisateur, annee, classe, matiere):
+    """Un professeur ne saisit que les matieres de ses affectations."""
+    if utilisateur.role != Role.PROFESSEUR:
+        return
+    fiche = utilisateur.professeur
+    if fiche is None or not AffectationProfesseur.objects.filter(
+        professeur=fiche, matiere=matiere, classe=classe, annee_scolaire=annee
+    ).exists():
+        raise ErreurMetier("Vous n'etes pas affecte a cette matiere pour cette classe.")
+
+
+def verifier_saisie_directe(evaluation):
+    """Une evaluation « Moy. interrogations » qui a des devoirs est calculee : on ne saisit que leurs notes."""
+    if evaluation.devoirs.exists():
+        raise ErreurMetier("Cette evaluation est calculee a partir de ses devoirs : saisissez les notes de chaque devoir.")
+
+
+def recalculer_moyenne_interrogations(interrogations, etudiants_ids, utilisateur=None):
+    """Note de l'evaluation « Moy. interrogations » = moyenne de ses devoirs (somme des notes / nombre de devoirs notes,
+    selon les regles d'absence de l'etablissement), enregistree sur le bareme de l'evaluation. Sans aucune note de
+    devoir comptee, la note est supprimee (manquante)."""
+    devoirs = list(interrogations.devoirs.order_by("id"))
+    etudiants_ids = set(etudiants_ids)
+    if not devoirs or not etudiants_ids:
+        return
+    regles = calculs.Regles.depuis_parametres()
+    notes = {(n.etudiant_id, n.evaluation_id): n for n in Note.objects.filter(evaluation__in=devoirs, etudiant_id__in=etudiants_ids)}
+    existantes = {n.etudiant_id: n for n in interrogations.notes.filter(etudiant_id__in=etudiants_ids)}
+    for etudiant_id in etudiants_ids:
+        notations = {}
+        for devoir in devoirs:
+            note = notes.get((etudiant_id, devoir.id))
+            notations[devoir.id] = calculs.Notation(note.statut, note.valeur) if note else None
+        resultat = calculs.moyenne_matiere(devoirs, notations, regles)
+        ancienne = existantes.get(etudiant_id)
+        if resultat.moyenne is not None:
+            statut, valeur = StatutNote.SAISIE, calculs.arrondir(resultat.moyenne * interrogations.bareme / calculs.VINGT)
+        else:
+            # Tous les devoirs sont renseignes mais aucun ne compte (absences justifiees, non applicable) : la moyenne est
+            # « exclue » et non « manquante ». Sinon (aucune note, ou devoirs encore a saisir) : pas de note.
+            presents = {n.statut for (e, _), n in notes.items() if e == etudiant_id}
+            if not presents or resultat.incomplete:
+                if ancienne:
+                    ancienne.delete()
+                continue
+            statut = next(s for s in (StatutNote.ABSENT, StatutNote.ABSENT_JUSTIFIE, StatutNote.NON_APPLICABLE) if s in presents)
+            valeur = None
+        if ancienne is None:
+            Note.objects.create(evaluation=interrogations, etudiant_id=etudiant_id, statut=statut, valeur=valeur, modifie_par=utilisateur)
+        elif ancienne.statut != statut or ancienne.valeur != valeur:
+            ancienne.statut, ancienne.valeur, ancienne.modifie_par = statut, valeur, utilisateur
+            ancienne.save()
 
 
 def lire_valeur(brut):
@@ -68,6 +123,7 @@ def enregistrer_notes(evaluation, lignes, utilisateur, motif=None):
 
     Statut 'MANQUANTE' (ou vide) = efface la note. Une note n'est jamais
     transformee en zero. Toute correction d'une note existante est auditee."""
+    verifier_saisie_directe(evaluation)
     motif = verifier_verrou(evaluation, utilisateur, motif)
     eleves = {i.etudiant_id: i.etudiant for i in eleves_classe(evaluation.classe_id, evaluation.annee_scolaire_id)}
     existantes = {n.etudiant_id: n for n in evaluation.notes.all()}
@@ -122,6 +178,9 @@ def enregistrer_notes(evaluation, lignes, utilisateur, motif=None):
         if creees:
             enregistrer_audit(utilisateur, "SAISIE_NOTES", "Evaluation", evaluation.pk,
                               nouvelle_valeur={"notes_creees": creees, "libelle": evaluation.libelle})
+        if evaluation.parent_id:   # note d'un devoir : la moyenne des interrogations des eleves concernes suit
+            recalculer_moyenne_interrogations(
+                evaluation.parent, {i for i, _, _ in a_ecrire} | {n.etudiant_id for n in a_effacer}, utilisateur)
     return {"creees": creees, "modifiees": modifiees, "supprimees": len(a_effacer)}
 
 

@@ -9,8 +9,8 @@ parametres et utilisateurs. Le menu et les routes dependent du role de l'utilisa
 
 ```bash
 npm install
-cp .env.example .env.local   # ajuster VITE_URL_API si besoin
-npm run dev
+cp .env.example .env.local   # facultatif : sans VITE_URL_API, /api est relaye vers le backend (port 8000)
+npm run dev -- --host        # --host : accessible aussi depuis le reseau local / Tailscale
 ```
 
 ## Build de production
@@ -24,7 +24,7 @@ npm run preview   # pour verifier le build localement
 
 | Variable | Description |
 |---|---|
-| `VITE_URL_API` | URL de base de l'API backend (ex: `http://localhost:8000/api`) |
+| `VITE_URL_API` | URL de base de l'API backend (ex: `https://ecole.exemple.mr/api`). Facultative : par defaut `/api`, relaye par Vite vers `127.0.0.1:8000` en developpement |
 
 ## Structure
 

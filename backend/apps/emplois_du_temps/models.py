@@ -31,6 +31,8 @@ class ConfigurationHoraires(models.Model):
     # False : la salle n'est plus une contrainte (une salle peut accueillir plusieurs cours en meme temps, ni capacite ni
     # indisponibilite verifiees) mais elle reste attribuee et affichee dans l'emploi du temps.
     considerer_salles = models.BooleanField(default=True, db_column="considerer_salles")
+    # True : un professeur n'enchaine jamais deux seances avec la meme classe (au moins un creneau ou une pause entre deux).
+    seances_successives_interdites = models.BooleanField(default=True, db_column="seances_successives_interdites")
 
     class Meta:
         db_table = "configuration_horaires"
@@ -42,9 +44,10 @@ class ConfigurationHoraires(models.Model):
 
 
 class TypeDisponibilite:
+    DISPONIBLE = "DISPONIBLE"       # contrainte obligatoire : le professeur n'enseigne QUE dans ses creneaux disponibles
     INDISPONIBLE = "INDISPONIBLE"   # contrainte obligatoire
     PREFERE = "PREFERE"             # preference (contrainte souple)
-    CHOIX = [(INDISPONIBLE, "Indisponible"), (PREFERE, "Creneau prefere")]
+    CHOIX = [(DISPONIBLE, "Disponible"), (INDISPONIBLE, "Indisponible"), (PREFERE, "Creneau prefere")]
 
 
 class DisponibiliteProfesseur(models.Model):
@@ -94,10 +97,14 @@ class OrigineEmploi:
 class EmploiDuTemps(models.Model):
     """Un emploi du temps hebdomadaire. Un brouillon est librement modifiable ;
     publie, il devient immuable (on le duplique pour le modifier) et une
-    version est conservee. Un seul emploi publie par annee scolaire."""
+    version est conservee. Un emploi appartient a une classe : un seul emploi publie par classe et par annee
+    scolaire (sans classe : un seul publie pour toute l'annee)."""
 
     annee_scolaire = models.ForeignKey(
         AnneeScolaire, on_delete=models.PROTECT, db_column="id_annee_scolaire", related_name="emplois_du_temps"
+    )
+    classe = models.ForeignKey(
+        Classe, null=True, blank=True, on_delete=models.PROTECT, db_column="id_classe", related_name="emplois_du_temps"
     )
     nom = models.CharField(max_length=120, db_column="nom")
     statut = models.CharField(max_length=10, choices=StatutEmploi.CHOIX, default=StatutEmploi.BROUILLON, db_column="statut")

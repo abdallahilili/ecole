@@ -16,7 +16,7 @@ from apps.commun.vues_base import ViewSetGestion
 from apps.etudiants.models import Inscription
 from apps.professeurs.models import AffectationProfesseur
 from apps.referentiels.models import Classe
-from . import bulletins, excel, resultats as moteur, services
+from . import bulletins, excel, grille, resultats as moteur, services
 from .models import Evaluation, ValidationResultats
 from .serializers import EvaluationSerializer
 
@@ -74,6 +74,8 @@ class EvaluationViewSet(ViewSetGestion):
                               ancienne_valeur=avant, nouvelle_valeur=apres)
 
     def perform_destroy(self, instance):
+        if instance.devoirs.exists():
+            raise ErreurMetier("Cette evaluation contient des devoirs : reduisez d'abord leur nombre.")
         if instance.notes.exists():
             raise ErreurMetier("Cette evaluation contient des notes : elle ne peut pas etre supprimee.")
         if services.resultats_valides(instance.classe, instance.trimestre):
@@ -101,9 +103,35 @@ class EvaluationViewSet(ViewSetGestion):
         bilan = services.enregistrer_notes(evaluation, lignes, request.user, request.data.get("motif"))
         return self._reponse(evaluation, bilan=bilan)
 
+    @action(detail=False, methods=["get", "post"], url_path="grille")
+    def grille_notes(self, request):
+        """GET ?annee_scolaire&classe&matiere&trimestre : grille du trimestre (devoirs, moyenne des interrogations,
+        composition, eleves). POST {..., notes: [{evaluation, etudiant, statut, valeur}], motif?} : enregistre."""
+        if request.method == "GET":
+            return Response(grille.lire_grille(grille.lire_cours(request.query_params), request.user))
+        cours = grille.lire_cours(request.data)
+        lignes = request.data.get("notes")
+        if not isinstance(lignes, list):
+            raise ErreurMetier("Champ 'notes' (liste) attendu.")
+        bilan = grille.enregistrer_grille(cours, lignes, request.user, request.data.get("motif"))
+        return Response({**grille.lire_grille(cours, request.user), "bilan": bilan})
+
+    @action(detail=False, methods=["get"], url_path="resultat-matiere")
+    def resultat_matiere(self, request):
+        """?annee_scolaire&classe&matiere&trimestre : resultat de la matiere (trimestre, trois trimestres, annee)."""
+        return Response(grille.lire_resultat(grille.lire_cours(request.query_params), request.user))
+
+    @action(detail=False, methods=["post"], url_path="structure")
+    def structure(self, request):
+        """{annee_scolaire, classe, matiere, trimestre, nombre_devoirs?, bareme_devoirs?, bareme_composition?, coefficient?}"""
+        cours = grille.lire_cours(request.data)
+        grille.configurer(cours, request.data, request.user)
+        return Response(grille.lire_grille(cours, request.user))
+
     @action(detail=True, methods=["get"], url_path="modele-import")
     def modele_import(self, request, pk=None):
         evaluation = self.get_object()
+        services.verifier_saisie_directe(evaluation)
         return reponse_xlsx(excel.xlsx_modele_notes(evaluation, moteur.liste_notes(evaluation)),
                             f"notes_{evaluation.classe.nom}_{evaluation.matiere.code}_T{evaluation.trimestre}.xlsx")
 
@@ -117,6 +145,7 @@ class EvaluationViewSet(ViewSetGestion):
     def importer(self, request, pk=None):
         """Sans `confirmer` : apercu (rien n'est ecrit). Avec `confirmer=true` : enregistre."""
         evaluation = self.get_object()
+        services.verifier_saisie_directe(evaluation)
         remplacer, confirmer = _bool(request.data.get("remplacer", "")), _bool(request.data.get("confirmer", ""))
         motif = request.data.get("motif")
         resultat = excel.analyser_import(request.FILES.get("fichier"), evaluation)
@@ -162,6 +191,14 @@ class ResultatsViewSet(viewsets.ViewSet):
         donnees = moteur.resultats(classe, periode)
         nom = f"classement_{classe.nom}_{'annuel' if periode == 0 else f'T{periode}'}.xlsx"
         return reponse_xlsx(excel.xlsx_classement(donnees), nom)
+
+    @action(detail=False, methods=["get"])
+    def classement(self, request):
+        """PDF paysage du classement de la classe (une ligne par eleve)."""
+        classe, periode = self._classe_et_periode(request.query_params)
+        donnees = moteur.resultats(classe, periode)
+        nom = f"classement_{classe.nom}_{'annuel' if periode == 0 else f'T{periode}'}.pdf"
+        return reponse_pdf(bulletins.pdf_classement(donnees), nom)
 
     @action(detail=False, methods=["get"], url_path="bulletins")
     def bulletins(self, request):

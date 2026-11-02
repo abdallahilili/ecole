@@ -21,12 +21,44 @@ def _seances(emploi):
     return list(emploi.seances.select_related("classe", "groupe", "matiere", "professeur", "salle"))
 
 
+def emplois_de_reference(annee, hors_classe=None):
+    """Pour chaque classe (sauf `hors_classe`) : son emploi du temps publie, a defaut son dernier brouillon."""
+    choisis = {}
+    emplois = EmploiDuTemps.objects.filter(annee_scolaire=annee, classe__isnull=False).exclude(statut=StatutEmploi.ARCHIVE)
+    if hors_classe is not None:
+        emplois = emplois.exclude(classe=hors_classe)
+    for emploi in emplois.order_by("cree_le", "id"):
+        courant = choisis.get(emploi.classe_id)
+        if courant is None or emploi.statut == StatutEmploi.PUBLIE or courant.statut != StatutEmploi.PUBLIE:
+            choisis[emploi.classe_id] = emploi
+    return list(choisis.values())
+
+
+def seances_hors_classe(annee, classe):
+    """Cours deja programmes pour les AUTRES classes : ils occupent les memes professeurs et salles."""
+    return [s for autre in emplois_de_reference(annee, hors_classe=classe) for s in _seances(autre)]
+
+
+def seances_des_autres_classes(emploi):
+    """Les cours des autres classes vus depuis `emploi` ; vide pour un emploi qui n'est pas celui d'une classe."""
+    return seances_hors_classe(emploi.annee_scolaire, emploi.classe) if emploi.classe_id is not None else []
+
+
+def analyser(emploi, publication=False):
+    """(cadre, seances de l'emploi, conflits) ; pour l'emploi d'une classe, les conflits avec les autres classes comptent."""
+    cadre, _, _ = pont.charger_cadre(emploi.annee_scolaire)
+    propres, externes = _seances(emploi), seances_des_autres_classes(emploi)
+    pont.completer_noms(cadre, propres + externes)
+    conflits = detecter([pont.vers_sc(s) for s in propres + externes], cadre, publication)
+    if externes:       # les defauts propres aux autres classes ne regardent pas cet emploi
+        cles = {s.pk for s in propres}
+        conflits = [c for c in conflits if cles & set(c["seances"])]
+    return cadre, propres, conflits
+
+
 def verifier_emploi(emploi, publication=False):
     """Tous les conflits obligatoires de l'emploi du temps (liste vide = valide)."""
-    cadre, _, _ = pont.charger_cadre(emploi.annee_scolaire)
-    seances = _seances(emploi)
-    pont.completer_noms(cadre, seances)
-    return detecter([pont.vers_sc(s) for s in seances], cadre, publication)
+    return analyser(emploi, publication)[2]
 
 
 def exiger_brouillon(emploi):
@@ -39,7 +71,7 @@ def exiger_brouillon(emploi):
 def conflits_pour(emploi, donnees, exclure_pk=None):
     """Conflits qu'une seance (nouvelle ou deplacee) creerait ; `donnees` : valeurs validees."""
     cadre, _, _ = pont.charger_cadre(emploi.annee_scolaire)
-    autres = _seances(emploi)
+    autres = _seances(emploi) + seances_des_autres_classes(emploi)
     pont.completer_noms(cadre, autres)
     for objet in ("professeur", "matiere", "classe", "groupe", "salle"):
         valeur = donnees.get(objet)
@@ -131,7 +163,8 @@ def publier_emploi(emploi, utilisateur, commentaire=""):
             code="conflit", donnees={"conflits": conflits},
         )
     with transaction.atomic():
-        EmploiDuTemps.objects.filter(annee_scolaire=emploi.annee_scolaire, statut=StatutEmploi.PUBLIE).update(
+        # Un seul emploi publie par classe (et un seul emploi sans classe) : l'ancien est archive.
+        EmploiDuTemps.objects.filter(annee_scolaire=emploi.annee_scolaire, statut=StatutEmploi.PUBLIE, classe=emploi.classe).update(
             statut=StatutEmploi.ARCHIVE)
         emploi.statut = StatutEmploi.PUBLIE
         emploi.publie_le = timezone.now()
@@ -149,7 +182,7 @@ def publier_emploi(emploi, utilisateur, commentaire=""):
 def dupliquer_emploi(emploi, utilisateur, nom=None):
     with transaction.atomic():
         copie = EmploiDuTemps.objects.create(
-            annee_scolaire=emploi.annee_scolaire, nom=nom or f"{emploi.nom} (copie)", origine=emploi.origine,
+            annee_scolaire=emploi.annee_scolaire, classe=emploi.classe, nom=nom or f"{emploi.nom} (copie)", origine=emploi.origine,
             cree_par=utilisateur,
         )
         SeanceProgrammee.objects.bulk_create([
@@ -167,10 +200,7 @@ def dupliquer_emploi(emploi, utilisateur, nom=None):
 def vue_emploi(emploi, filtres):
     """Donnees de la grille hebdomadaire (avec conflits), filtrables par classe,
     groupe, professeur, salle ou matiere."""
-    cadre, _, _ = pont.charger_cadre(emploi.annee_scolaire)
-    seances = _seances(emploi)
-    pont.completer_noms(cadre, seances)
-    conflits = detecter([pont.vers_sc(s) for s in seances], cadre)
+    cadre, seances, conflits = analyser(emploi)
     par_seance = {}
     for conflit in conflits:
         for cle in conflit["seances"]:
@@ -187,7 +217,8 @@ def vue_emploi(emploi, filtres):
                          "pause": any(debut < b and a < fin for a, b in cadre.pauses)})
     return {
         "emploi": {"id": emploi.pk, "nom": emploi.nom, "statut": emploi.statut, "origine": emploi.origine,
-                   "annee_scolaire": emploi.annee_scolaire_id, "rapport": emploi.rapport, "modifiable": emploi.statut == StatutEmploi.BROUILLON},
+                   "annee_scolaire": emploi.annee_scolaire_id, "classe": emploi.classe_id, "rapport": emploi.rapport,
+                   "modifiable": emploi.statut == StatutEmploi.BROUILLON},
         "cadre": {"jours": [{"id": j, "nom": NOMS_JOURS[j]} for j in sorted(cadre.jours)], "creneaux": creneaux,
                   "duree_creneau": cadre.duree_creneau, "debut": hhmm(cadre.debut), "fin": hhmm(cadre.fin),
                   "salles_contraintes": cadre.salles_contraintes},

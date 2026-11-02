@@ -109,7 +109,9 @@ class ListeAvanceeMixin:
             if not isinstance(chemin, str):
                 continue
             champ = _champ_modele(modele, chemin)
-            if isinstance(champ, (models.CharField, models.TextField)):
+            if champ is None and chemin in queryset.query.annotations:   # valeur calculee par la vue (texte)
+                queryset = queryset.filter(**{f"{chemin}__icontains": valeur})
+            elif isinstance(champ, (models.CharField, models.TextField)):
                 queryset = queryset.filter(**{f"{chemin}__icontains": valeur})
             elif isinstance(champ, models.BooleanField):
                 queryset = queryset.filter(**{chemin: valeur.lower() in VRAI})

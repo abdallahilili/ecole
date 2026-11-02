@@ -359,9 +359,11 @@ class ImportNotesTests(BaseEvaluations):
         return openpyxl.load_workbook(io.BytesIO(r.content))
 
     def remplir(self, classeur, valeurs):
+        """valeurs : {matricule: note} ; le fichier identifie les eleves par leur numero d'inscription."""
+        cibles = {Inscription.objects.get(etudiant__matricule=m).numero_inscription: v for m, v in valeurs.items()}
         for ligne in classeur.active.iter_rows(min_row=9):
-            if ligne[1].value in valeurs:
-                ligne[3].value = valeurs[ligne[1].value]
+            if ligne[1].value in cibles:
+                ligne[3].value = cibles[ligne[1].value]
         return classeur
 
     def envoyer(self, classeur, **extra):
@@ -387,9 +389,10 @@ class ImportNotesTests(BaseEvaluations):
         classeur.active.append([None, "XXXX", "Inconnu", 10])
         r = self.envoyer(classeur, confirmer="true")
         self.assertEqual(r.status_code, 400)
-        anomalies = {l["matricule"]: " ".join(l["anomalies"]) for l in r.json()["lignes"] if l["anomalies"]}
-        self.assertIn("hors du bareme", anomalies["E1"])
-        self.assertIn("note invalide", anomalies["E2"])
+        anomalies = {l["numero_inscription"]: " ".join(l["anomalies"]) for l in r.json()["lignes"] if l["anomalies"]}
+        numero = lambda matricule: Inscription.objects.get(etudiant__matricule=matricule).numero_inscription
+        self.assertIn("hors du bareme", anomalies[numero("E1")])
+        self.assertIn("note invalide", anomalies[numero("E2")])
         self.assertIn("inconnu", anomalies["XXXX"])
         self.assertEqual(Note.objects.count(), 0)
 
@@ -413,7 +416,8 @@ class ImportNotesTests(BaseEvaluations):
     def test_export_reimportable(self):
         self.noter(self.evaluation_, self.awa, 13.5)
         feuille = openpyxl.load_workbook(io.BytesIO(self.client.get(self.base + "exporter/").content)).active
-        ligne = next(l for l in feuille.iter_rows(min_row=9) if l[1].value == "E1")
+        numero = Inscription.objects.get(etudiant=self.awa).numero_inscription
+        ligne = next(l for l in feuille.iter_rows(min_row=9) if l[1].value == numero)
         self.assertEqual(ligne[3].value, 13.5)
 
 

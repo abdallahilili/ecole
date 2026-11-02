@@ -149,6 +149,7 @@ class SeanceSerializer(serializers.ModelSerializer):
 class PresenceEtudiantSerializer(serializers.ModelSerializer):
     etudiant_nom = serializers.CharField(source="etudiant.nom_complet", read_only=True)
     etudiant_matricule = serializers.CharField(source="etudiant.matricule", read_only=True)
+    numero_inscription = serializers.CharField(read_only=True)   # inscription de l'annee de la seance (annotation de la vue)
     date = serializers.DateField(source="seance.date", read_only=True)
     heure_debut = serializers.TimeField(source="seance.heure_debut", read_only=True)
     heure_fin = serializers.TimeField(source="seance.heure_fin", read_only=True)
@@ -171,6 +172,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     seance = serializers.IntegerField(source="presence.seance_id", read_only=True)
     etudiant_nom = serializers.CharField(source="presence.etudiant.nom_complet", read_only=True)
     etudiant_matricule = serializers.CharField(source="presence.etudiant.matricule", read_only=True)
+    numero_inscription = serializers.CharField(read_only=True)   # inscription de l'annee de la seance (annotation de la vue)
     classe_nom = serializers.CharField(source="presence.seance.classe.nom", read_only=True)
     matiere_nom = serializers.CharField(source="presence.seance.matiere.nom_affiche", read_only=True)
     date = serializers.DateField(source="presence.seance.date", read_only=True)

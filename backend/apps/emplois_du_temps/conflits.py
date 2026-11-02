@@ -45,13 +45,14 @@ class Cadre:
     duree_min: int
     duree_max: int
     pauses: list = field(default_factory=list)            # [(debut, fin)]
-    indispo_prof: dict = field(default_factory=dict)      # prof -> [(jour, debut, fin)]
+    indispo_prof: dict = field(default_factory=dict)      # prof -> [(jour, debut, fin)] (hors de ses creneaux disponibles = indisponible)
     indispo_salle: dict = field(default_factory=dict)     # salle -> [(jour, debut, fin)]
     capacites: dict = field(default_factory=dict)         # salle -> places
     effectifs: dict = field(default_factory=dict)         # (classe, groupe | None) -> eleves
     affectations: set = field(default_factory=set)        # (prof, matiere, classe, groupe | None)
     noms: dict = field(default_factory=dict)              # ("prof"|"salle"|"classe"|"matiere"|"groupe", id) -> nom
     salles_contraintes: bool = True                       # False : ni simultaneite, ni indisponibilite, ni capacite, ni salle exigee
+    successives_interdites: bool = False                  # True : un professeur n'enchaine pas deux seances avec la meme classe
 
     def nom(self, genre, identifiant):
         return self.noms.get((genre, identifiant), f"{genre} {identifiant}")
@@ -112,6 +113,18 @@ def detecter(seances, cadre, publication=False):
                 "PROFESSEUR_SIMULTANE",
                 f"{cadre.nom('prof', professeur)} a deux cours en meme temps ({_quand(a)}) : "
                 f"{_etiquette(cadre, a)} et {_etiquette(cadre, b)}.", a, b))
+    if cadre.successives_interdites:
+        par_professeur_classe = {}
+        for s in seances:
+            par_professeur_classe.setdefault((s.professeur, s.classe), []).append(s)
+        for (professeur, classe), groupe in par_professeur_classe.items():
+            tri = sorted(groupe, key=lambda s: (s.jour, s.debut))
+            for a, b in zip(tri, tri[1:]):
+                if a.jour == b.jour and a.fin == b.debut:
+                    conflits.append(_conflit(
+                        "SEANCES_SUCCESSIVES",
+                        f"{cadre.nom('prof', professeur)} a deux seances successives avec la classe {cadre.nom('classe', classe)} "
+                        f"({_quand(a)} puis {_quand(b)}).", a, b))
     for salle, groupe in par_salle.items():
         for a, b in _paires(groupe):
             conflits.append(_conflit(
@@ -136,10 +149,16 @@ def detecter(seances, cadre, publication=False):
     for s in seances:
         for jour, a, b in cadre.indispo_prof.get(s.professeur, []):
             if jour == s.jour and s.debut < b and a < s.fin:
-                conflits.append(_conflit(
-                    "PROFESSEUR_INDISPONIBLE",
-                    f"{cadre.nom('prof', s.professeur)} est indisponible le {NOMS_JOURS.get(jour)} de {hhmm(a)} a {hhmm(b)} "
-                    f"({_etiquette(cadre, s)}, {_quand(s)}).", s))
+                if a == 0 and b >= 24 * 60:      # jour ou le professeur n'enseigne pas (ses jours de disponibilite)
+                    conflits.append(_conflit(
+                        "PROFESSEUR_INDISPONIBLE",
+                        f"{cadre.nom('prof', s.professeur)} n'est pas disponible le {NOMS_JOURS.get(jour)} "
+                        f"({_etiquette(cadre, s)}, {_quand(s)}).", s))
+                else:
+                    conflits.append(_conflit(
+                        "PROFESSEUR_INDISPONIBLE",
+                        f"{cadre.nom('prof', s.professeur)} est indisponible le {NOMS_JOURS.get(jour)} de {hhmm(a)} a {hhmm(b)} "
+                        f"({_etiquette(cadre, s)}, {_quand(s)}).", s))
                 break
         if s.salle and cadre.salles_contraintes:
             for jour, a, b in cadre.indispo_salle.get(s.salle, []):

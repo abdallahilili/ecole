@@ -331,7 +331,7 @@ export function PagePresences() {
               <thead>
                 <tr className="bg-fond-barre text-start text-texte-attenue">
                   <th className="px-3 py-2">{tr("N°")}</th>
-                  <th className="px-3 py-2">{tr("Matricule")}</th>
+                  <th className="px-3 py-2">{tr("N° d'inscription")}</th>
                   <th className="px-3 py-2">{tr("Nom complet")}</th>
                   <th className="px-3 py-2">{tr("Statut")}</th>
                   <th className="px-3 py-2">{tr("Observation")}</th>
@@ -346,7 +346,7 @@ export function PagePresences() {
                   return (
                     <tr key={e.etudiant} className="border-t border-bordure hover:bg-fond">
                       <td className="px-3 py-1.5">{e.numero}</td>
-                      <td className="px-3 py-1.5">{e.matricule}</td>
+                      <td className="px-3 py-1.5 font-medium">{e.numero_inscription}</td>
                       <td className="px-3 py-1.5">{e.nom_complet}</td>
                       <td className="px-3 py-1.5">
                         <div className="flex gap-1">

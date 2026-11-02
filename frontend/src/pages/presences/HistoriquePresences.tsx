@@ -28,7 +28,7 @@ function Filtres({ valeurs, onChange, avecStatut, avecRecherche }: {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {avecRecherche && (
-        <input className={CHAMP} placeholder={tr("Etudiant (nom, matricule)...")} value={valeurs.recherche ?? ""}
+        <input className={CHAMP} placeholder={tr("Etudiant (nom, n° d'inscription)...")} value={valeurs.recherche ?? ""}
                onChange={(e) => maj("recherche", e.target.value)} />
       )}
       <select className={CHAMP} value={valeurs.annee_scolaire ?? ""} onChange={(e) => maj("annee_scolaire", e.target.value)}>
@@ -123,7 +123,7 @@ function ListeAbsences() {
         colonnes={[
           { cle: "date", titre: tr("Date"), rendu: (p) => formaterDate(p.date) },
           { cle: "horaire", titre: tr("Horaire"), rendu: (p) => `${formaterHeure(p.heure_debut)} - ${formaterHeure(p.heure_fin)}` },
-          { cle: "etudiant_nom", titre: tr("Etudiant"), rendu: (p) => `${p.etudiant_nom} (${p.etudiant_matricule})` },
+          { cle: "etudiant_nom", titre: tr("Etudiant"), rendu: (p) => `${p.etudiant_nom} (${p.numero_inscription ?? p.etudiant_matricule})` },
           { cle: "classe_nom", titre: tr("Classe") },
           { cle: "matiere_nom", titre: tr("Matiere") },
           { cle: "statut", titre: tr("Statut"), rendu: (p) => <Badge statut={p.statut} /> },
